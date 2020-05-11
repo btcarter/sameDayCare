@@ -1,0 +1,369 @@
+---
+title: "Natural language processing of Same day care data - a demonstration"
+author: "Benjamin Carter"
+output:
+  html_document:
+    code_folding: hide
+---
+
+```{r setup}
+# packages ####
+library(dplyr)
+library(tidytext)
+library(tm)
+library(widyr)
+library(topicmodels)
+library(ggplot2)
+
+# paths ####
+DATA.DIR <- file.path()
+
+OUT <- file.path("C:",
+                 "Users",
+                 "CarteB",
+                 "OneDrive - BILLINGS CLINIC",
+                 "projects",
+                 "sdc",
+                 "data")
+
+# load data ####
+df.path <- file.path("V:",
+                  "Depts",
+                  "CtrTransRsch",
+                  "Dept Private",
+                  "CTR Staff",
+                  "PROJECT - IM Residency",
+                  "RESIDENT - Brenda",
+                  "DATA",
+                  "FINAL DATA with collapsed dx and comorbidities 2014_2015 4_24_19 LR.sav")
+
+spss <- foreign::read.spss(df.path, to.data.frame = TRUE)
+
+df.path <- file.path("C:",
+                "Users",
+                "CarteB",
+                "OneDrive - BILLINGS CLINIC",
+                "projects",
+                "sdc",
+                "data",
+                "Same Day Care_Express Care 2014_2015 patients 3_25_2020-2.xlsx")
+
+df <- readxl::read_xlsx(df.path)
+```
+
+# Preprocessing
+
+Same as first look
+
+```{r preprocessing}
+# preprocessing ####
+df$Tribe <- na_if(df$Tribe, ".")
+
+df.processed <- df %>%
+  select(
+    "id" = `Person MPI number`,
+    "lungDx" = `Lung disease Diagnosis`,
+    "diabetesDx" = `Diabetes Diagnosis`,
+    "heartFailureDx" = `Heart Failure Diagnosis`,
+    "sex" = Sex,
+    "race" = Race,
+    "ethnicity" = Ethnicity,
+    "tribe" = Tribe,
+    "age" = `Age in Years at Visit`,
+    "SdcDate" = `SDC_EC Admit Date`,
+    ICD9_SDC_EC,
+    "Sdc_reason" = `SDC_EC Reason for Visit`,
+    "SdcCollapsedReason" = `Collapsed Reason for visit`,
+    "categorization" = `Categorization: Hospitalization, No hospitalization, Referred by SDC, Not noticed at SDC`,
+    "SdcLocation" = `SDC_EC Location`,
+    "Sdc_or_Ec" = `SDC or EC visit?`,
+    "return_in_14" = `did pt have hospital visit within 14 days`,
+    "PCP" = `Did patient have a PCP?`,
+    "Encounter_type" = `Encounter Type`
+  ) %>%
+  mutate(
+    lungDx = as.logical(lungDx),
+    diabetesDx = as.logical(diabetesDx),
+    heartFailureDx = as.logical(heartFailureDx),
+    sex = as.factor(sex),
+    race = as.factor(race),
+    ethnicity = as.factor(ethnicity),
+    tribe = as.factor(tribe),
+    SdcCollapsedReason = as.character(SdcCollapsedReason),
+    categorization = as.factor(categorization),
+    SdcLocation = as.factor(SdcLocation),
+    Sdc_or_Ec = as.factor(Sdc_or_Ec),
+    Encounter_type = as.factor(Encounter_type),
+    PCP = ifelse(PCP == "Yes", TRUE, FALSE)
+  )
+
+df.processed$docID <- 1:nrow(df.processed)
+```
+
+# Replicating a nurse with NLP with 7 assumed topics
+
+## Creating a document term matrix
+
+```{r lda7}
+# entry <- "Sdc_reason"
+
+# notes <- VCorpus(VectorSource(df.processed[[entry]]))
+# 
+# notes <- tidy(df.processed)
+
+text.matrix <- df.processed %>%
+  unnest_tokens(
+   output = "word",
+   input = Sdc_reason,
+   token = "words"
+   ) %>%
+  anti_join(stop_words) %>% # remove meaningless words
+  mutate(word = SnowballC::wordStem(word)) %>%  # stem words
+  count(docID, word) %>%
+  cast_dtm(
+    document = docID,
+    term = word,
+    value = n,
+    weighting = tm::weightTf
+  )
+
+text.lda <- LDA(
+  text.matrix,
+  k = 7,
+  method = "Gibbs",
+  control = list(seed = 1111)
+  )
+
+text.betas <- tidy(text.lda, matrix = "beta") # how related are the words and which topic are they?
+text.gammas <- tidy(text.lda, matrix = "gamma") %>%
+  group_by(document) %>%
+  arrange(
+    desc(gamma)
+  ) %>%
+  slice(1) %>%
+  group_by(topic)
+
+  # how related are the documents (patient notes) and what topic are they?
+
+text.perplexity <- perplexity(text.lda, text.matrix)
+
+# combine with dataframe for comparison ####
+df.joined <- text.gammas %>%
+  mutate(
+    docID = as.numeric(document)
+  ) %>%
+  right_join(
+    df.processed,
+    by = "docID"
+  )
+```
+
+## What is contained in each category?
+
+Topic number 1 appears to contain symptoms related to respiratory disease.
+
+```{r category1, warning=FALSE, message=FALSE}
+text.betas %>%
+  filter(
+    topic == 1
+  ) %>% 
+  arrange(
+    desc(
+      beta
+    )
+  )
+```
+
+Category 2 appears to be related to infections.
+
+```{r category2, warning=FALSE, message=FALSE}
+text.betas %>%
+  filter(
+    topic == 2
+  ) %>% 
+  arrange(
+    desc(
+      beta
+    )
+  )
+
+```
+
+Category 3 appears to be related to infections of the sinus cavities, ear ducts and face.
+
+```{r category3, warning=FALSE, message=FALSE}
+text.betas %>%
+  filter(
+    topic == 3
+  ) %>% 
+  arrange(
+    desc(
+      beta
+    )
+  )
+
+```
+
+Category 4 appears to be related to symptoms of age, isolation?
+
+```{r category4, warning=FALSE, message=FALSE}
+text.betas %>%
+  filter(
+    topic == 4
+  ) %>% 
+  arrange(
+    desc(
+      beta
+    )
+  )
+
+```
+
+Category 5 - head colds?
+
+```{r category5, warning=FALSE, message=FALSE}
+text.betas %>%
+  filter(
+    topic == 5
+  ) %>% 
+  arrange(
+    desc(
+      beta
+    )
+  )
+
+```
+
+Category 6 - inflammation and swelling of the extremeties?
+
+```{r category6, warning=FALSE, message=FALSE}
+text.betas %>%
+  filter(
+    topic == 6
+  ) %>% 
+  arrange(
+    desc(
+      beta
+    )
+  )
+
+```
+
+Category 7 - Localized pain?
+
+```{r category7, warning=FALSE, message=FALSE}
+text.betas %>%
+  filter(
+    topic == 7
+  ) %>% 
+  arrange(
+    desc(
+      beta
+    )
+  )
+```
+
+## How does this compare to a person?
+
+```{r computerVhuman, warning=FALSE, message=FALSE}
+with(df.joined, table(topic, SdcCollapsedReason))
+```
+
+
+# Is there an optimal number of topics?
+
+In an effort to determine whether a more optimal number of groups is possible within the data, perplexity values were calculated iteratively for between 2 and 25 possible groups. These were then plotted to search for a crux (see below). None are readily apparent in the data. Close examination (the sort involving extreme squinting and some imagination) shows relatively weak elbows in the curve at k=6, k = 8, k = 10, with the most pronounced elbow at k = 20. These might yeild more efficient sorting, however the gain is minimal at best.
+
+```{r perplexity}
+# values <- c()
+# 
+# for (i in 2:25){
+#   lda.model <- LDA(
+#     text.matrix,
+#     k = i,
+#     method = "Gibbs",
+#     control = list(seed = 1111)
+#   )
+#   values <- c(values, perplexity(lda.model, text.matrix))
+# }
+# 
+# values <- as.data.frame(values)
+# values$k <- c(2:(nrow(values)+1))
+# 
+# ggplot(values, aes(k, values)) + geom_point() + geom_line() + theme_classic()
+
+```
+
+```{r describeEntries}
+words <- df.processed %>%
+  unnest_tokens(
+   output = "word",
+   input = Sdc_reason,
+   token = "words"
+   ) %>%
+  anti_join(stop_words) %>% 
+  filter(
+    !is.na(word)
+  ) %>% 
+  mutate(word = SnowballC::wordStem(word)) %>%
+  count(word) %>%
+  summarise(
+    total = sum(n)
+  )
+
+entries <- nrow(df.processed[!is.na(df.processed$Sdc_reason), ])
+
+words_per_obsertation = words/entries
+```
+
+The lack of an apparent crux leads me to question - is there enough text present in the 'Sdc_reason' to produce an accurate model? `r entries` observations have no entry in `Sdc_reason`. Of the remaining observations, there is an average of `r words_per_observation`. This dearth may explain the model's inability to adequately segment the population, as well as the relatively minor crux present at 20 categories. If fewer words are present in each entry, the influence of a single words will be quite large in determining the category assigned to an observation.
+
+# Other observations
+
+## Frequent fliers
+
+```{r frequentFlyers, warning=FALSE, message=FALSE}
+# why can't I combine by id? BECAUSE SOME PTs APPEAR MORE THAN ONCE
+all.pts <- df.processed %>%
+  group_by(id) %>%
+  summarise(
+    n = n()
+  ) %>%
+  nrow()
+
+more.than.once <- df.processed %>%
+  group_by(id) %>%
+  tally() %>%
+  filter(
+    n > 1
+  ) %>%
+  nrow()
+
+```
+Of the observations in the data there are `r all.pts` unique patient IDs. Of these, `r more.than.once` (`r more.than.once/nrow(df.processed)`) appear more than once in the data. Many appeared many more times than that, see table below for the most frequent patient IDs in the data.
+
+```{r mostFreqTable, message=FALSE, warning=FALSE}
+most.freq <- df.processed %>%
+  group_by(id) %>%
+  tally() %>%
+  arrange(
+    desc(
+      n
+    )
+  ) %>% 
+  head(15)
+
+knitr::kable(most.freq, caption = "15 most frequent patient IDs in the data and the number of instances.")
+```
+
+### Who are they?
+
+```{r describeFFs, warning=FALSE, message=FALSE}
+df.most.freq <- df.processed %>% 
+  filter(
+    id %in% most.freq$id
+  )
+
+df.most.freq %>% 
+  with(table(id,ICD9_SDC_EC))
+```

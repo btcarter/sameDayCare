@@ -1,0 +1,171 @@
+---
+title: "SDC via SSMS"
+output: 
+  html_notebook:
+    code_folding: hide
+---
+
+```{r setup}
+# packages ####
+library(dplyr)
+library(stringr)
+library(ggplot2)
+
+# paths ####
+data.dir.path <- file.path("C:","Users","CarteB","OneDrive - BILLINGS CLINIC","projects","sdc","data")
+df.path <- file.path(data.dir.path, "sdc.2016-2019.2020-05-07.csv")
+out.dir.path <- file.path("C:","Users","CarteB","OneDrive - BILLINGS CLINIC","projects","sdc","results")
+
+# load data ####
+
+cols <- c(
+  "BeginDTS",
+  "AdmitMonthNBR",
+  "AdmitDayNBR",
+  "AdmitHourNBR",
+  "AdmitDayOfWeek",
+  "AdmitAgeNBR",
+  "ApptStatusDSC",
+  "ResourceCVDSC",
+  "ScheduleAppointmentID",
+  "ActiveIndicatorCD",
+  "ResourceTypeFLG",
+  "Dept",
+  "AppointmentLocationCVDisplayCVDSC",
+  "PersonID",
+  "FinancialClassCVDSC",
+  "EthnicityDSC",
+  "LanguageDSC",
+  "MaritalStatusDSC",
+  "RaceDSC",
+  "GenderDSC",
+  "ReligionDSC",
+  "ReasonForVisitDSC",
+  "ICD9CD",
+  "DiagnosisDSC",
+  "DiagnosisFreeTXT"
+)
+
+df <- read.csv2(
+  df.path,
+  header = FALSE,
+  sep = ",",
+  col.names = cols
+  )
+
+```
+
+
+# Q&A - did the query work?
+
+```{r}
+head(df)
+tail(df)
+```
+
+# Preprocessing
+
+```{r}
+
+# correct bad entries ####
+df[1,1] <- "2016-01-01 00:00:00.0000000"
+
+df.processed <- df %>%
+  mutate(
+    BeginDTS = as.Date(BeginDTS),
+    PersonID = as.character(PersonID)
+  ) %>% 
+  mutate(
+    ReligionDSC = na_if(ReligionDSC, " "),
+    RaceDSC = na_if(RaceDSC, " "),
+    ResourceTypeFLG = na_if(ResourceTypeFLG, "NULL"),
+    Dept = na_if(Dept, "NULL")
+  )
+
+df <- NULL
+
+# make a list of SDC/EC facilities
+# sd.ec.facilities <- df %>% 
+#   filter(
+#     str_detect(AppointmentLocationCVDisplayCVDSC,
+#                "SDC|Same Day Care|EC|Express Care")
+#   ) %>%
+#   select(
+#     AppointmentLocationCVDisplayCVDSC
+#   ) %>%
+#   distinct()
+
+sdc.ec.facilities <- c("Heights Express Care",
+                       "SDC Downtown",
+                       "SDC West",
+                       "SDC Heights",
+                       "Grand Express Care",
+                       "Billings Clinic Downtown EC",
+                       "Central Express Care",
+                       "SDC Downtown Nurse",
+                       "SDC West Nurse")
+
+# make functions ####
+get.sdc.pts <- function(x){
+    # select IDs who used SDC ####
+  ids <- x %>% 
+    filter(
+      AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities
+    ) %>%
+    distinct(
+      PersonID
+    )
+  
+  # filter for IDs that appeared in SDC
+  df <- x %>%
+    filter(
+      PersonID %in% ids$PersonID
+    )
+  
+  return(df)
+}
+
+# steps ####
+  # sort by date/participant
+  # find date of first SDC/EC for each participant
+  # make variable denoting if the following encounter occured within 14 days of the SDC/EC encounter
+
+# make SDC/EC indicator variable ####
+
+df.sdc <- df.processed %>% 
+  get.sdc.pts() %>% 
+  arrange(
+    PersonID,
+    BeginDTS,
+    AdmitHourNBR
+  ) %>% 
+  mutate(
+    return_in_14_after_sdc = ifelse(
+      PersonID == lag(PersonID) &
+        BeginDTS - lag(BeginDTS) <= 14 &
+        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities,
+      TRUE,
+      FALSE
+    )
+  ) %>% 
+  mutate(
+    return_in_14_after_sdc = ifelse(is.na(return_in_14_after_sdc), FALSE, return_in_14_after_sdc)
+  )
+
+```
+
+Patient records were selected via SQL query if the patient visited a same day care or express care facillity during the years of 2016-2019. Entries without data or with "NULL" were then recoded as `NA`. A logical indicator variable was then created to show if the patient returned to a Billings Clinic facility within 14 days of a visit to a same day care or Express Care Facility. The following facilities were coded as same day care facilities:
+
+```{r}
+knitr::kable(as.data.frame(sdc.ec.facilities), caption = "Same Day Care and Express Care Facilities")
+```
+
+
+# Analysis
+
+# Machine learning
+
+Data from years 2016-2018 were then used to train a predictive model. Data from 2019 were used for validation.
+
+
+
