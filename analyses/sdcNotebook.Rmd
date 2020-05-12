@@ -13,13 +13,14 @@ library(ggplot2)
 
 # paths ####
 data.dir.path <- file.path("C:","Users","CarteB","OneDrive - BILLINGS CLINIC","projects", "dataAndResults","sdc","data")
-df.path <- file.path(data.dir.path, "All.2016-2019.2020-05-07.csv")
+df.path <- file.path(data.dir.path, "All.2016-2019.2020-05-12.csv")
 out.dir.path <- file.path("C:","Users","CarteB","OneDrive - BILLINGS CLINIC","projects","dataAndResults", "sdc","results")
 
 # load data ####
 
 cols <- c(
   "BeginDTS",
+  "EncounterID",
   "AdmitMonthNBR",
   "AdmitDayNBR",
   "AdmitHourNBR",
@@ -56,13 +57,6 @@ df <- read.csv2(
 ```
 
 
-# Q&A - did the query work?
-
-```{r}
-head(df)
-tail(df)
-```
-
 # Preprocessing
 
 ```{r}
@@ -72,16 +66,19 @@ df[1,1] <- "2016-01-01 00:00:00.0000000"
 
 df.processed <- df %>%
   mutate(
-    BeginDTS = as.Date(BeginDTS),
+    BeginDTS = as.POSIXct(BeginDTS, format = "%Y-%m-%d %H:%M:%S"),
     PersonID = as.character(PersonID)
   ) %>% 
   mutate(
     ReligionDSC = na_if(ReligionDSC, " "),
     RaceDSC = na_if(RaceDSC, " "),
     EthnicityDSC = na_if(EthnicityDSC, " "),
-    MaritalStatusDSC = na_if(EthnicityDSC, " "),
+    MaritalStatusDSC = na_if(MaritalStatusDSC, " "),
     ResourceTypeFLG = na_if(ResourceTypeFLG, "NULL"),
     Dept = na_if(Dept, "NULL")
+  ) %>%
+  filter(
+    BeginDTS > "2016-12-31"
   )
 
 df <- NULL
@@ -142,42 +139,240 @@ df.sdc <- df.processed %>%
     AdmitHourNBR
   ) %>% 
   mutate(
-    return_in_14_after_sdc = ifelse(
-      PersonID == lag(PersonID) &
-        BeginDTS - lag(BeginDTS) <= 14 &
-        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities,
-      TRUE,
-      FALSE
-    ),
+    sdc_ec = ifelse(AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities, "SDC or EC", "Other"),
+    # return_in_14_after_sdc = ifelse(
+    #   PersonID == lag(PersonID) &
+    #     BeginDTS - lag(BeginDTS) <= 14 &
+    #     lag(AppointmentLocationCVDisplayCVDSC) %in% sdc.ec.facilities,
+    #   "TRUE",
+    #   "FALSE"
+    # ),
     RaceDSC = as.character(RaceDSC),
-    EthnicityDSC = as.character(EthnicityDSC)
+    EthnicityDSC = as.character(EthnicityDSC),
+    ICD9CD = as.character(ICD9CD)
   ) %>% 
   mutate(
     return_in_14_after_sdc = ifelse(is.na(return_in_14_after_sdc), FALSE, return_in_14_after_sdc)
   )
+
+# Break down the dataframe into bits for processing and reunify later.
+# This step combines all patient ICD9s, demographic information, reason for visit,
+#   and other in patient information into a single observation per DTS.
+
+df.sdc.demographics <- df.sdc %>% 
+  select(
+    PersonID,
+    EncounterID,
+    BeginDTS,
+    GenderDSC,
+    RaceDSC,
+    EthnicityDSC,
+    ReligionDSC,
+    LanguageDSC,
+    MaritalStatusDSC
+  ) %>% 
+  distinct(
+    PersonID,
+    EncounterID,
+    BeginDTS
+  )
+
+df.sdc.icd9 <- df.sdc %>%
+  group_by(
+    PersonID,
+    BeginDTS,
+    AppointmentLocationCVDisplayCVDSC
+  ) %>%
+  count(
+    ICD9CD
+  ) %>% 
+  summarise(
+    ICD9CD = paste(ICD9CD, collapse = "; ")
+  )
+  
+df.sdc.diagnosisdsc <- df.sdc %>%
+  group_by(
+    PersonID,
+    BeginDTS,
+    AppointmentLocationCVDisplayCVDSC
+  ) %>%
+  count(
+    DiagnosisDSC
+  ) %>% 
+  summarise(
+    DiagnosisDSC = paste(DiagnosisDSC, collapse = "; ")
+  )
+
+df.sdc.reasonforvisit <- df.sdc %>%
+  group_by(
+    PersonID,
+    BeginDTS,
+    AppointmentLocationCVDisplayCVDSC
+  ) %>%
+  count(
+    ReasonForVisitDSC
+  ) %>% 
+  summarise(
+    ReasonForVisitDSC = paste(ReasonForVisitDSC, collapse = "; ")
+  )
+
+df.sdc.diagnosisfreetxt <- df.sdc %>%
+  group_by(
+    PersonID,
+    BeginDTS,
+    AppointmentLocationCVDisplayCVDSC
+  ) %>%
+  count(
+    DiagnosisFreeTXT
+  ) %>% 
+  summarise(
+    DiagnosisFreeTXT = paste(DiagnosisFreeTXT, collapse = "; ")
+  )
+
+df.sdc.financial <- df.sdc %>% 
+  group_by(
+    PersonID,
+    BeginDTS,
+    AppointmentLocationCVDisplayCVDSC
+  ) %>% 
+  count(
+    FinancialClassCVDSC
+  ) %>% 
+  summarise(
+    FinancialClassCVDSC = paste(FinancialClassCVDSC, collapse = "; ")
+  )
+  
+df.sdc.dept <- df.sdc %>% 
+  group_by(
+    PersonID,
+    BeginDTS,
+    AppointmentLocationCVDisplayCVDSC
+  ) %>% 
+  count(
+    Dept
+  ) %>% 
+  summarise(
+    Dept = paste(Dept, collapse = "; ")
+  )
+
+df.sdc.flattened <- df.sdc.icd9 %>%
+  left_join(
+    df.sdc.diagnosisdsc,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  ) %>% 
+  left_join(
+    df.sdc.diagnosisfreetxt,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  ) %>% 
+  left_join(
+    df.sdc.reasonforvisit,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  ) %>%
+  left_join(
+    df.sdc.financial,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  ) %>% 
+  left_join(
+    df.sdc.dept,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  ) %>% 
+  left_join(
+    df.sdc.demographics,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  )
+
+# how to build data with pre-existing dx like heart, lung, metabolic disease
+
 ```
 
-Patient records were selected via SQL query if the patient visited a same day care or express care facillity during the years of 2016-2019. Entries without data or with "NULL" were then recoded as `NA`. A logical indicator variable was then created to show if the patient returned to a Billings Clinic facility within 14 days of a visit to a same day care or Express Care Facility. The following facilities were coded as same day care facilities:
+`r nrow(df.sdc)` patient records were selected via SQL query from the electronic health record (EHR) on the basis of a visit to a Same Day Care or Express Care facility between the years 2017-2019. Entries in the EHR without entered data or with "NULL" were then recoded as `NA`. Records created for the same patient, with the same date and time stamp were then combined into a single observation.
+
+A logical indicator variable was then created to show if the patient returned to a Billings Clinic facility within 14 days of a visit to a same day care or Express Care Facility. The following facilities were coded as same day care facilities:
 
 ```{r}
-knitr::kable(as.data.frame(sdc.ec.facilities), caption = "Same Day Care and Express Care Facilities")
+knitr::kable(sdc.ec.facilities, col.names = c("Same Day Care and Express Care Facilities"))
 ```
 
+Entries with the same patient identifier, datetimestamp and location were then combined into a single observation.
 
 # Analysis
 
 ## Descriptive statistics
 
 ```{r summStats}
-DESC <- compareGroups::compareGroups(~AdmitDayOfWeek + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC, df.sdc, max.xlev = 22)
+DESC <- compareGroups::compareGroups(
+  sdc_ec ~ AdmitDayOfWeek + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC,
+  df.sdc, 
+  max.xlev = 22
+  )
+
 tab <- compareGroups::createTable(DESC)
+
+compareGroups::export2md(tab)
 ```
 
-## As a time series
+### SDC and EC Encounters
+
+```{r}
+df.sdc %>%
+  filter(
+    sdc_ec == "SDC or EC"
+  ) %>% 
+  group_by(
+    BeginDTS,
+    sdc_ec
+  ) %>%
+  count() %>%
+  ungroup() %>% 
+  ggplot(
+    aes(BeginDTS, n)
+  ) +
+  geom_point() +
+  geom_line() +
+  theme_classic() +
+  labs(
+    title = "Same Day Care and Express Care Encounter",
+    y = "Number of Visits",
+    x = "Date"
+  )
+
+
+df.sdc %>%
+  group_by(
+    BeginDTS,
+    sdc_ec
+  ) %>%
+  count() %>%
+  ungroup() %>% 
+  ggplot(
+    aes(BeginDTS, n, color=sdc_ec)
+  ) +
+  geom_point() +
+  geom_line() +
+  theme_classic() +
+  labs(
+    title = "Total Encounters",
+    y = "Number of Visits",
+    x = "Date",
+    group = "Encounter Type"
+  )
+```
+
+### ICD Codes
+
+```{r}
+df.sdc %>%
+  group_by(ICD9CD) %>%
+  count() %>% 
+  arrange(
+    desc(n)
+  )
+```
+
 
 # Machine learning
 
-Data from years 2016-2018 were then used to train a predictive model. Data from 2019 were used for validation.
+Data from years 2017-2018 were then used to train a predictive model. Data from 2019 were used for validation.
 
 
 
