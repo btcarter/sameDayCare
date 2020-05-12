@@ -1,5 +1,6 @@
 SELECT DISTINCT				
 	SA.BeginDTS
+	,SA2.EncounterID AS EncounterID
 	,DATEPART(MONTH, SA.BeginDTS) AS AdmitMonthNBR
 	,DATEPART(DAY, SA.BeginDTS) AS AdmitDayNBR
 	,DATEPART(HOUR, SA.BeginDTS) AS AdmitHourNBR
