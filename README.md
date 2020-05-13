@@ -4,6 +4,16 @@ This is a project that was resurrected after David Hedges developed some quite u
 
 The basic plan is to assess the variables and recreate the same models, with the addition of an natural language processing algorithm to create a new variable representing the reason for admission based upon physician notes. We'll see how this goes.
 
-# Update - 2020.05.06
+# Progress Notes
+
+## 2020.05.13
+
+Not sure pulling directly from the server will be possible. I may not have permission to do something like that (convenient as that would be).
+
+I have added ICD9 codes, as well as code priorities.
+
+Currently working on adding known pre-existing conditions to the query. At least I am learning shortcut keys quickly. I suppose standing on occasion would be a good idea.
+
+## 2020.05.06
 
 Turns out the data were corrupt. Numerous entries were incomplete. Also, many patients appeared in the dataset multiple times. Some as many as 32 (see nlp.Rmd calculations). So I have begun to rebuild the dataset using SSMS and SQL. This was done using the query found in `2019_query.sql`. I'll find a way to query the database directly via R later.
