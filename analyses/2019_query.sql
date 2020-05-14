@@ -39,31 +39,31 @@ FROM
 		ON SA.PersonID = Personnel.PersonID		
 	LEFT JOIN [Cerner].[Schedule].[Resource] RES			
 		ON SA.ResourceCVCD = RES.ResourceCVCD		
-		LEFT JOIN [SAM].[PatientAccess].[ResourceToDeptCrosswalk] RESDEPT		
-			ON SA.ResourceCVCD = RESDEPT.ResourceCVCD	
-			LEFT JOIN [Cerner].[Person].[Person] PATIENT	
-				ON SA.PersonID = PATIENT.PersonID
-		LEFT JOIN [Cerner].[Schedule].[Appointment] SA2		
-			ON SA.ScheduleEventID = SA2.ScheduleID	
-			AND SA2.RoleMeaningDSC = 'PATIENT'	
+	LEFT JOIN [SAM].[PatientAccess].[ResourceToDeptCrosswalk] RESDEPT		
+		ON SA.ResourceCVCD = RESDEPT.ResourceCVCD	
+	LEFT JOIN [Cerner].[Person].[Person] PATIENT	
+		ON SA.PersonID = PATIENT.PersonID
+	LEFT JOIN [Cerner].[Schedule].[Appointment] SA2		
+	  ON SA.ScheduleEventID = SA2.ScheduleID	
+		AND SA2.RoleMeaningDSC = 'PATIENT'	
 	LEFT JOIN [Cerner].[Person].[PersonBASE] PER
 		ON SA2.PersonID = PER.PersonID
 	LEFT JOIN [Cerner].[Encounter].[EncounterToPlanRelationshipBASE] EPR
 		ON SA2.EncounterID = EPR.EncounterID
-		LEFT JOIN [Cerner].[Reference].[HealthPlanBASE] HP
-			ON HP.HealthPlanID = EPR.HealthPlanID
-			LEFT JOIN [Cerner].[Encounter].[EncounterBASE] EN
-			ON SA2.EncounterID = EN.EncounterID
-			LEFT JOIN Shared.[Clinical].[DiagnosisBASE] SH
-			ON SA2.EncounterID = SH.EncounterID
-			LEFT JOIN Cerner.Clinical.DiagnosisBASE DXB
-			ON SA2.EncounterID = DXB.EncounterID
-			LEFT JOIN [SAM].[RespiratoryFailure].[COPDSummaryPatientsBASE] SRF
-			ON SA.PersonID = SRF.PatientID
-			LEFT JOIN [SAM].[Cardiovascular].[HeartFailureEventDiagnosis] CVS
-			ON SA2.EncounterID = CVS.EncounterID
-			LEFT JOIN [SAM].[DiabetesBTC].[EventDiabetes] DBS
-			ON SA2.EncounterID = REPLACE(DBS.PatientEncounterID, 'EN', '')
+	LEFT JOIN [Cerner].[Reference].[HealthPlanBASE] HP
+		ON HP.HealthPlanID = EPR.HealthPlanID
+	LEFT JOIN [Cerner].[Encounter].[EncounterBASE] EN
+		ON SA2.EncounterID = EN.EncounterID
+	LEFT JOIN Shared.[Clinical].[DiagnosisBASE] SH
+		ON SA2.EncounterID = SH.EncounterID
+	LEFT JOIN Cerner.Clinical.DiagnosisBASE DXB
+		ON SA2.EncounterID = DXB.EncounterID
+	LEFT JOIN [SAM].[RespiratoryFailure].[COPDSummaryPatientsBASE] SRF
+		ON SA.PersonID = SRF.PatientID
+	LEFT JOIN [SAM].[Cardiovascular].[HeartFailureEventDiagnosis] CVS
+		ON SA2.EncounterID = CVS.EncounterID
+	LEFT JOIN [SAM].[DiabetesBTC].[EventDiabetes] DBS
+		ON SA2.EncounterID = REPLACE(DBS.PatientEncounterID, 'EN', '')
 	
 				
 WHERE 				
