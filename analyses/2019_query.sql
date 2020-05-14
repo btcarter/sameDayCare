@@ -52,7 +52,7 @@ FROM
 	LEFT JOIN [Cerner].[Encounter].[EncounterBASE] EN
 		ON SA2.EncounterID = EN.EncounterID
 	LEFT JOIN Cerner.[Reporting].[LightHouseDimensionDiagnosis] SH
-		ON SA.PersonID = SH.PersonID
+		ON SA.PersonID = SH.DiagnosisID
 	LEFT JOIN Cerner.Clinical.DiagnosisBASE DXB
 		ON SA2.EncounterID = DXB.EncounterID
 	LEFT JOIN [SAM].[RespiratoryFailure].[COPDSummaryPatientsBASE] SRF
