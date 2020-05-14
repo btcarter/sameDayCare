@@ -78,3 +78,6 @@ WHERE
 	AND SA2.ScheduleStateCVDisplayDSC NOT IN ('RESCHEDULED','CANCELED','DELETED')	
 	AND PER.ActiveIndicatorCD = 1	
 	AND EPR.ActiveIndicatorCD = 1
+	
+ORDER BY
+  SA2.PersonID, SA2.EncounterID, SA.BeginDTS, ICD9CD
