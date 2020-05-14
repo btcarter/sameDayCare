@@ -14,8 +14,7 @@ SELECT DISTINCT
 	,RESDEPT.Dept			
 	,SA2.AppointmentLocationCVDisplayDSC
 	--patient information
-	,SA2.PersonID	
-	,HP.FinancialClassCVDSC
+	,SA2.PersonID
 	,PER.EthnicGroupCVDisplayDSC AS EthnicityDSC
 	,PER.LanguageCVDisplayDSC AS LanguageDSC
 	,PER.MaritalTypeCVDisplayDSC AS MaritalStatusDSC
@@ -50,8 +49,6 @@ FROM
 		ON SA2.PersonID = PER.PersonID
 	LEFT JOIN [Cerner].[Encounter].[EncounterToPlanRelationshipBASE] EPR
 		ON SA2.EncounterID = EPR.EncounterID
-	LEFT JOIN [Cerner].[Reference].[HealthPlanBASE] HP
-		ON HP.HealthPlanID = EPR.HealthPlanID
 	LEFT JOIN [Cerner].[Encounter].[EncounterBASE] EN
 		ON SA2.EncounterID = EN.EncounterID
 	LEFT JOIN Shared.[Clinical].[DiagnosisBASE] SH
@@ -81,4 +78,3 @@ WHERE
 	AND SA2.ScheduleStateCVDisplayDSC NOT IN ('RESCHEDULED','CANCELED','DELETED')	
 	AND PER.ActiveIndicatorCD = 1	
 	AND EPR.ActiveIndicatorCD = 1
-	AND HP.ActiveIndicatorCD = 1
