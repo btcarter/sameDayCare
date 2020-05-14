@@ -25,7 +25,7 @@ SELECT DISTINCT
 	,EN.ReasonForVisitDSC AS ReasonForVisitDSC
 	,SH.DiagnosisCD AS ICD9CD
 	,DXB.DiagnosisPrioritySEQ
-	,SH.DiagnosisDSC AS DiagnosisDSC
+	,SH.LongDSC AS LongDSC
 	,DXB.DiagnosisFreeTXT AS DiagnosisFreeTXT
   -- prexisting coniditions
 	,CASE WHEN	SRF.FirstCOPDDiagnosisDT IS NOT NULL THEN 1 ELSE 0 END AS COPD
@@ -51,8 +51,8 @@ FROM
 		ON SA2.EncounterID = EPR.EncounterID
 	LEFT JOIN [Cerner].[Encounter].[EncounterBASE] EN
 		ON SA2.EncounterID = EN.EncounterID
-	LEFT JOIN Shared.[Clinical].[DiagnosisBASE] SH
-		ON SA2.EncounterID = SH.EncounterID
+	LEFT JOIN Cerner.[Reporting].[LightHouseDimensionDiagnosis] SH
+		ON SA.PersonID = SH.PersonID
 	LEFT JOIN Cerner.Clinical.DiagnosisBASE DXB
 		ON SA2.EncounterID = DXB.EncounterID
 	LEFT JOIN [SAM].[RespiratoryFailure].[COPDSummaryPatientsBASE] SRF
