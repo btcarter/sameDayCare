@@ -2,9 +2,11 @@ SELECT DISTINCT
   --date info
 	SA.BeginDTS
 	,SA2.EncounterID AS EncounterID
+	,DATEPART(MONTH, SA.BeginDTS) AS AdmitMonthNBR
+	,DATEPART(DAY, SA.BeginDTS) AS AdmitDayNBR
+	,DATEPART(HOUR, SA.BeginDTS) AS AdmitHourNBR
 	,DATENAME(DW, SA.BeginDTS) AS AdmitDayOfWeek
 	,DATEDIFF(YEAR, PER.BirthDTS, SA.BeginDTS) AS AdmitAgeNBR	
-	,SA.StateOfAppointmentMeaningDSC AS ApptStatusDSC		
 	,SA.ResourceCVDSC
 	,SA.ScheduleAppointmentID			
 	,SA.ActiveIndicatorCD			
@@ -27,14 +29,9 @@ SELECT DISTINCT
 	,SH.DiagnosisDSC AS DiagnosisDSC
 	,DXB.DiagnosisFreeTXT AS DiagnosisFreeTXT
   -- prexisting coniditions
-	,CASE WHEN	SRF.FirstCOPDDiagnosisDT > 0 THEN 1 ELSE 0 END AS COPD
+	,CASE WHEN	SRF.FirstCOPDDiagnosisDT IS NOT NULL THEN 1 ELSE 0 END AS COPD
 	,CASE WHEN CVS.DiagnosisDSC IS NOT NULL THEN 1 ELSE 0 END AS HeartFailure
-	,CASE WHEN DM.EventNM IS NOT NULL THEN 1 ELSE 0 END AS Diabetes
-	-- vitals
-	,CEV.CatalogCVDisplayDSC AS CatalogCVDisplayDSC
-	,CEV.EventCVDSC AS VitalsType
-	,CEV.ResultVAL AS VitalsValue
-	,CEV.ResultUnitCVDisplayDSC AS VitalsUnit
+	,CASE WHEN DBS.EventNM IS NOT NULL THEN 1 ELSE 0 END AS Diabetes
 	
 FROM 				
 	[Cerner].[Schedule].[Appointment] SA			
@@ -63,12 +60,10 @@ FROM
 			ON SA2.EncounterID = DXB.EncounterID
 			LEFT JOIN [SAM].[RespiratoryFailure].[COPDSummaryPatientsBASE] SRF
 			ON SA.PersonID = SRF.PatientID
-			LEFT JOIN [Cerner].[Clinical].[Event] CEV
-			ON SA2.EncounterID = CEV.EncounterID
-			LEFT JOIN [SAM].[Cardiovascular].[HeartFailureSummaryBASE] CVS
+			LEFT JOIN [SAM].[Cardiovascular].[HeartFailureEventDiagnosis] CVS
 			ON SA2.EncounterID = CVS.EncounterID
-			LEFT JOIN [SAM].[DiabetesBTC].[EventDiabetes] DM
-			ON SA2.EncounterID = REPLACE(SAM.DiabetesBTC.EventDiabetes.PatientEncounterID, 'EN','')
+			LEFT JOIN [SAM].[DiabetesBTC].[EventDiabetes] DBS
+			ON SA2.EncounterID = REPLACE(DBS.PatientEncounterID, 'EN', '')
 	
 				
 WHERE 				
@@ -87,7 +82,3 @@ WHERE
 	AND PER.ActiveIndicatorCD = 1	
 	AND EPR.ActiveIndicatorCD = 1
 	AND HP.ActiveIndicatorCD = 1
-	AND CEV.CatalogCVDisplayDSC = 'Pulse' 
-    OR CEV.CatalogCVDisplayDSC = 'Respirations'
-    OR CEV.CatalogCVDisplayDSC = 'Temperature'
-    OR CEV.CatalogCVDisplayDSC = 'Blood Pressure'
