@@ -286,23 +286,16 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
   ) %>% 
   mutate(
     BeginDTS = as.POSIXct(BeginDTS)
-  ) %>% 
-  mutate(
-    sdc_ec = ifelse(
-      AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities, 
-      "SDC or EC", 
-      "Other"),
-    return_in_14_after_sdc = ifelse(
-      PersonID == lag(PersonID) &
-        BeginDTS - lag(BeginDTS) <= 14 &
-        lag(AppointmentLocationCVDisplayCVDSC) %in% sdc.ec.facilities,
-      "TRUE",
-      "FALSE"
-    )
-  ) %>%
-  mutate(
-    return_in_14_after_sdc = ifelse(is.na(return_in_14_after_sdc), FALSE, return_in_14_after_sdc)
   )
+
+df.sdc.flattened$return_in_14 <-
+  for (person in df.sdc.flattened$PersonID){
+    df.sdc.flattened %>% 
+      select(
+        PersonID == person
+      ) %>% 
+  }
+
 
 ```
 
