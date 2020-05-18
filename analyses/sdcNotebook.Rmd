@@ -286,15 +286,21 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
   ) %>% 
   mutate(
     BeginDTS = as.POSIXct(BeginDTS)
+  ) %>% 
+  arrange(
+    PersonID,
+    BeginDTS
+  ) %>% 
+  mutate(
+    return_in_14 = ifelse(
+      BeginDTS - lag(BeginDTS) <= 1209600 &
+        BeginDTS - lag(BeginDTS) > 0 &
+        PersonID == lag(PersonID) &
+        lag(AppointmentLocationCVDisplayCVDSC) %in% sdc.ec.facilities,
+      TRUE,
+      FALSE
+    )
   )
-
-df.sdc.flattened$return_in_14 <-
-  for (person in df.sdc.flattened$PersonID){
-    df.sdc.flattened %>% 
-      select(
-        PersonID == person
-      ) %>% 
-  }
 
 
 ```
