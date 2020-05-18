@@ -6,6 +6,10 @@ The basic plan is to assess the variables and recreate the same models, with the
 
 # Progress Notes
 
+## 2020.05.18
+
+Pulled the data from servers this morning. Will preprocess and send SDC stuff to David. Had to fix the query again.
+
 ## 2020.05.13
 
 Not sure pulling directly from the server will be possible. I may not have permission to do something like that (convenient as that would be).
