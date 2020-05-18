@@ -54,7 +54,7 @@ FROM
 	LEFT JOIN Shared.[Clinical].[DiagnosisBASE] SH
 		ON SA2.EncounterID = SH.EncounterID
 	LEFT JOIN Cerner.Clinical.DiagnosisBASE DXB
-		ON SA2.EncounterID = DXB.EncounterID
+		ON SH.EncounterID = DXB.EncounterID AND SH.DiagnosisID = DXB.DiagnosisID
 	LEFT JOIN [SAM].[RespiratoryFailure].[COPDSummaryPatientsBASE] SRF
 		ON SA.PersonID = SRF.PatientID
 	LEFT JOIN [SAM].[Cardiovascular].[HeartFailureEventDiagnosis] CVS
