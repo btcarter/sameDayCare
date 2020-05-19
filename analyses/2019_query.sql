@@ -13,6 +13,7 @@ SELECT DISTINCT
 	,RES.ResourceTypeFLG			
 	,RESDEPT.Dept			
 	,SA2.AppointmentLocationCVDisplayDSC
+	,EN.EncounterTypeCVDSC AS EncounterType
 	--patient information
 	,SA2.PersonID
 	,PER.EthnicGroupCVDisplayDSC AS EthnicityDSC
