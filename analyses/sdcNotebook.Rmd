@@ -17,7 +17,9 @@ library(ggplot2)
 data.dir.path <- file.path("C:","Users","CarteB","OneDrive - BILLINGS CLINIC","projects", "dataAndResults","sdc","data")
 df.path <- file.path(data.dir.path, "All.2016-2019.2020-05-18.csv")
 out.dir.path <- file.path("C:","Users","CarteB","OneDrive - BILLINGS CLINIC","projects","dataAndResults", "sdc","results")
+```
 
+```{r loadData}
 # load data ####
 
 cols <- c(
@@ -34,6 +36,7 @@ cols <- c(
   "ResourceTypeFLG",
   "Dept",
   "AppointmentLocationCVDisplayCVDSC",
+  "EncounterType",
   "PersonID",
   "EthnicityDSC",
   "LanguageDSC",
@@ -319,7 +322,10 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
       TRUE,
       FALSE
     ),
-    sdc_ec = ifelse(AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities, "SDC or EC Facility", "Other Facility")
+    Facility = ifelse(AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities, "SDC or EC Facility", "Other Facility"),
+    HeartFailure = as.factor(as.logical(HeartFailure)),
+    COPD = as.logical(COPD),
+    Diabetes = as.logical(Diabetes)
   )
 
 
@@ -337,80 +343,90 @@ knitr::kable(sdc.ec.facilities, col.names = c("Same Day Care and Express Care Fa
 
 ## Descriptive statistics
 
+### Who are the SDC or EC patients?
+
 ```{r summStats}
 DESC <- compareGroups::compareGroups(
-  ~ sdc_ec + ReasonForVisitDSC + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC,
-  df.sdc.flattened, 
+  ~ GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC,
+  df.sdc.demographics, 
   max.xlev = 22
   )
 
 tab <- compareGroups::createTable(DESC)
 
-compareGroups::export2md(tab)
+compareGroups::export2md(tab, caption = "Summary descriptives of patients in the dataset.")
 ```
 
 ### SDC and EC Encounters
 
-```{r}
-df.sdc %>%
-  filter(
-    sdc_ec == "SDC or EC"
+```{r, fig.cap="test"}
+df.sdc.flattened %>% 
+  mutate(
+    BeginDTS = as.Date(BeginDTS)
   ) %>% 
   group_by(
     BeginDTS,
-    sdc_ec
-  ) %>%
-  count() %>%
-  ungroup() %>% 
+    Facility
+  ) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  ungroup %>% 
   ggplot(
-    aes(BeginDTS, n)
+    aes(
+      BeginDTS,
+      n,
+      color = Facility
+    )
   ) +
-  geom_point() +
-  geom_line() +
+  geom_line(alpha = 0.6) +
+  geom_point(alpha = 0.8) +
   theme_classic() +
   labs(
-    title = "Same Day Care and Express Care Encounter",
-    y = "Number of Visits",
-    x = "Date"
-  )
-
-
-df.sdc %>%
-  group_by(
-    BeginDTS,
-    sdc_ec
-  ) %>%
-  count() %>%
-  ungroup() %>% 
-  ggplot(
-    aes(BeginDTS, n, color=sdc_ec)
-  ) +
-  geom_point() +
-  geom_line() +
-  theme_classic() +
-  labs(
-    title = "Total Encounters",
-    y = "Number of Visits",
+    title = "Patient encounters",
     x = "Date",
-    group = "Encounter Type"
+    y = "Number of encounters",
+    color = "Facility"
   )
 ```
 
-### ICD Codes
+### Priority ICD9 codes
 
+#### For SDC or EC facilities
 ```{r}
-df.sdc %>%
-  group_by(ICD9CD) %>%
+df.sdc.flattened %>%
+  filter(
+    Facility == "SDC or EC Facility"
+  ) %>% 
+  group_by(
+    ICD9.priority
+    ) %>%
   count() %>% 
   arrange(
-    desc(n)
+    desc(n),
+    ICD9.priority
+  )
+```
+
+#### All other facilities
+
+```{r}
+df.sdc.flattened %>%
+  filter(
+    Facility == "Other Facility"
+  ) %>% 
+  group_by(
+    ICD9.priority
+    ) %>%
+  count() %>% 
+  arrange(
+    desc(n),
+    ICD9.priority
   )
 ```
 
 
-# Machine learning
-
-Data from years 2017-2018 were then used to train a predictive model. Data from 2019 were used for validation.
 
 
+## Natural Language Processing: How many groups are there?
 
