@@ -1,10 +1,10 @@
 ---
-title: "SDC via SSMS"
+title: "Same Day Care 2.0"
 output:
-  html_document:
-    df_print: paged
   html_notebook:
     code_folding: hide
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup}
@@ -15,7 +15,7 @@ library(ggplot2)
 
 # paths ####
 data.dir.path <- file.path("C:","Users","CarteB","OneDrive - BILLINGS CLINIC","projects", "dataAndResults","sdc","data")
-df.path <- file.path(data.dir.path, "All.2016-2019.2020-05-18.csv")
+df.path <- file.path(data.dir.path, "All.2016-2019.2020-05-19.csv")
 out.dir.path <- file.path("C:","Users","CarteB","OneDrive - BILLINGS CLINIC","projects","dataAndResults", "sdc","results")
 ```
 
@@ -66,7 +66,7 @@ df <- read.csv2(
 
 # Preprocessing
 
-```{r}
+```{r preproc}
 
 # correct bad entries ####
 df[1,1] <- "2018-08-20 14:40:00.0000000"
@@ -90,10 +90,9 @@ df.processed <- df %>%
     )
   ) %>%
   filter(
-    BeginDTS > "2016-12-31"
+    BeginDTS > "2016-12-31",
+    EncounterType %in% c("Outpatient Clinic", "Inpatient")
   )
-
-df <- NULL
 
 # make a list of SDC/EC facilities
 # sd.ec.facilities <- df %>% 
@@ -315,10 +314,19 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
   ) %>% 
   mutate(
     return_in_14 = ifelse(
-      BeginDTS - lag(BeginDTS) <= 1209600 &
-        BeginDTS - lag(BeginDTS) > 0 &
-        PersonID == lag(PersonID) &
-        lag(AppointmentLocationCVDisplayCVDSC) %in% sdc.ec.facilities,
+      lead(BeginDTS) - BeginDTS <= 1209600 &
+        lead(BeginDTS) - BeginDTS > 0 &
+        lead(PersonID) == PersonID &
+        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities,
+      TRUE,
+      FALSE
+    ),
+    return_in_14_sameICD = ifelse(
+      lead(BeginDTS) - BeginDTS <= 1209600 &
+        lead(BeginDTS) - BeginDTS > 0 &
+        lead(PersonID) == PersonID &
+        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
+        ICD9.priority == lead(ICD9.priority),
       TRUE,
       FALSE
     ),
@@ -328,12 +336,11 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
     Diabetes = as.logical(Diabetes)
   )
 
-
 ```
 
-`r nrow(df.sdc)` patient records were selected via SQL query from the electronic health record (EHR) on the basis of a visit to a Same Day Care or Express Care facility between the years 2017-2019. Entries in the EHR without entered data or with "NULL" were then recoded as `NA`. Records created for the same patient, with the same date and time stamp and location were then combined into a single observation. ICD9s were concatenated in the order of their priority, and a new variable was created to code for the priority ICD9 code. This reduced the total number of observations to `r nrow(df.sdc.flattened)` individual patient encounters.
+`r nrow(df.sdc)` patient records were selected via SQL query from the electronic health record (EHR) on the basis of a visit to a Same Day Care or Express Care facility between the years 2017-2019. Entries in the EHR without entered data or with "NULL" were then recoded as `NA`. Records created for the same patient, with the same date and time stamp and location were then combined into a single observation. ICD-10 codes were combined into a single array in the order of their priority, and a new variable was created to code for the priority ICD-10 code. This reduced the total number of observations to `r nrow(df.sdc.flattened)` individual true patient encounters.
 
-A logical indicator variable was then created to show if the patient returned to a Billings Clinic facility within 14 days of a visit to a same day care or Express Care Facility. The following facilities were coded as same day care facilities:
+A logical indicator variable was then created to show if the patient returned to a Billings Clinic facility within 14 days of a visit to a same day care or Express Care Facility. A similar variable was also created to indicate if that patient returned within 14 days and had the same priority ICD-10 code. The following facilities were coded as same day care facilities:
 
 ```{r}
 knitr::kable(sdc.ec.facilities, col.names = c("Same Day Care and Express Care Facilities"))
@@ -343,21 +350,54 @@ knitr::kable(sdc.ec.facilities, col.names = c("Same Day Care and Express Care Fa
 
 ## Descriptive statistics
 
+```{r encountersPerPerson}
+encounterStats <- df.sdc.flattened %>% 
+  group_by(
+    PersonID
+  ) %>% 
+  summarise(
+    Encounters = n(),
+    Encounters_sdc = sum(
+      ifelse(AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities,
+             TRUE,
+             FALSE)
+    ),
+    return_after_sdc = sum(return_in_14),
+    return_after_sdc_sameICD = sum(return_in_14_sameICD)
+  )
+
+df.sdc.demographics.combined <- df.sdc.demographics %>% 
+  left_join(
+    encounterStats,
+    by = c("PersonID")
+  ) %>% 
+  mutate(
+    sdc_returns_str = ifelse(return_after_sdc_sameICD > 0,
+                                     "Returned in 14 days with same ICD-10",
+                                     ifelse(return_after_sdc > 0,
+                                            "Returned in 14 days",
+                                            "Did not return")
+                                     )
+  )
+
+```
+
 ### Who are the SDC or EC patients?
 
 ```{r summStats}
 DESC <- compareGroups::compareGroups(
-  ~ GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC,
-  df.sdc.demographics, 
+  sdc_returns_str ~ Encounters + Encounters_sdc + return_after_sdc + return_after_sdc_sameICD + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC,
+  df.sdc.demographics.combined, 
   max.xlev = 22
   )
 
 tab <- compareGroups::createTable(DESC)
 
-compareGroups::export2md(tab, caption = "Summary descriptives of patients in the dataset.")
+compareGroups::export2md(tab, caption = "Summary descriptives of patients by whether or not they returned within 14 days.")
+
 ```
 
-### SDC and EC Encounters
+### When did the encounters happen?
 
 ```{r, fig.cap="test"}
 df.sdc.flattened %>% 
@@ -426,7 +466,29 @@ df.sdc.flattened %>%
 ```
 
 
-
+# Predictive modeling
 
 ## Natural Language Processing: How many groups are there?
 
+## Linear Model
+
+```{r}
+df.sdc.flattened.filtered <- df.sdc.flattened %>% 
+  filter(
+    AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities
+  ) %>% 
+  arrange(
+    PersonID,
+    BeginDTS
+  ) %>% 
+  group_by(
+    PersonID
+  ) %>% 
+  slice(
+    1
+  )
+```
+
+Some PersonID's appear in the dataset multiple times. This could bias the dataset by giving too much weight to that participant's contribution and inflate Type I error. To guard against this, I chose to only retain the first encounter with Same Day Care or Express Care for each PersonID. All other observations were then removed from the dataset. This resulted in `r nrow(df.sdc.flattened.filtered)` observations in the final data set.
+
+## Linear Mixed-Effects Model
