@@ -14,9 +14,9 @@ library(stringr)
 library(ggplot2)
 
 # paths ####
-data.dir.path <- file.path("C:","Users","CarteB","OneDrive - BILLINGS CLINIC","projects", "dataAndResults","sdc","data")
+data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", "CSI & David Hedges - Same Day Care Project", "data")
 df.path <- file.path(data.dir.path, "All.2016-2019.2020-05-19.csv")
-out.dir.path <- file.path("C:","Users","CarteB","OneDrive - BILLINGS CLINIC","projects","dataAndResults", "sdc","results")
+out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", "CSI & David Hedges - Same Day Care Project", "results")
 ```
 
 ```{r loadData}
@@ -159,6 +159,7 @@ df.sdc.demographics <- df.sdc %>%
   ) %>% 
   select(
     PersonID,
+    AdmitAgeNBR,
     EthnicityDSC,
     RaceDSC,
     LanguageDSC,
@@ -170,7 +171,8 @@ df.sdc.demographics <- df.sdc %>%
     Diabetes
   ) %>% 
   mutate(
-    LanguageDSC = na_if(LanguageDSC, " ")
+    LanguageDSC = na_if(LanguageDSC, " "),
+    AdmitAgeNBR = as.numeric(as.character(AdmitAgeNBR))
   )
 
 # combine ICD9s into a single observation per encounter ####
@@ -386,7 +388,7 @@ df.sdc.demographics.combined <- df.sdc.demographics %>%
 
 ```{r summStats}
 DESC <- compareGroups::compareGroups(
-  sdc_returns_str ~ Encounters + Encounters_sdc + return_after_sdc + return_after_sdc_sameICD + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC,
+  sdc_returns_str ~ AdmitAgeNBR + Encounters + Encounters_sdc + return_after_sdc + return_after_sdc_sameICD + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC,
   df.sdc.demographics.combined, 
   max.xlev = 22
   )
@@ -395,6 +397,11 @@ tab <- compareGroups::createTable(DESC)
 
 compareGroups::export2md(tab, caption = "Summary descriptives of patients by whether or not they returned within 14 days.")
 
+female <- update(tab, x = update(DESC, . ~ . - GenderDSC, subset = GenderDSC == "FEMALE"), show.n = FALSE)
+male <- update(tab, x = update(DESC, . ~ . - GenderDSC, subset = GenderDSC == "MALE"))
+
+test <- cbind("Females" = female, "Males" = male)
+print(male)
 ```
 
 ### When did the encounters happen?
@@ -492,3 +499,14 @@ df.sdc.flattened.filtered <- df.sdc.flattened %>%
 Some PersonID's appear in the dataset multiple times. This could bias the dataset by giving too much weight to that participant's contribution and inflate Type I error. To guard against this, I chose to only retain the first encounter with Same Day Care or Express Care for each PersonID. All other observations were then removed from the dataset. This resulted in `r nrow(df.sdc.flattened.filtered)` observations in the final data set.
 
 ## Linear Mixed-Effects Model
+
+```{r}
+library(lme4)
+library(lmerTest)
+
+model <- lmer(return_in_14 ~ AdmitAgeNBR + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC + (1|PersonID) + AppointmentLocationCVDisplayCVDSC + ICD9.priority + Dept + HeartFailure,
+              df.sdc.flattened)
+
+
+```
+
