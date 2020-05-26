@@ -333,6 +333,15 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
       TRUE,
       FALSE
     ),
+    return_in_14_diffICD = ifelse(
+      lead(BeginDTS) - BeginDTS <= 1209600 &
+        lead(BeginDTS) - BeginDTS > 0 &
+        lead(PersonID) == PersonID &
+        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
+        ICD9.priority != lead(ICD9.priority),
+      TRUE,
+      FALSE
+    ),
     Facility = ifelse(AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities, "SDC or EC Facility", "Other Facility"),
     HeartFailure = as.factor(as.logical(HeartFailure)),
     COPD = as.logical(COPD),
@@ -496,7 +505,7 @@ df.sdc.flattened.filtered <- df.sdc.flattened %>%
   slice(
     1
   ) %>% 
-  droplevels() 
+  droplevels() %>% 
   mutate(
     return_str = ifelse(
       return_in_14_sameICD > 0,
@@ -509,9 +518,10 @@ df.sdc.flattened.filtered <- df.sdc.flattened %>%
     )
   )
 
-linear.model <- lm(
-  return_str ~ AdmitAgeNBR + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC + AppointmentLocationCVDisplayCVDSC + ICD9.priority + Dept + HeartFailure,
-  data = df.sdc.flattened.filtered
+linearModel <- glm(
+  return_in_14 ~ AdmitAgeNBR + GenderDSC + RaceDSC + MaritalStatusDSC + ICD9.priority + Dept,
+  data = df.sdc.flattened.filtered,
+  family = "binomial"
 )
 
 ```
@@ -524,8 +534,24 @@ Some PersonID's appear in the dataset multiple times. This could bias the datase
 library(lme4)
 library(lmerTest)
 
-model <- lmer(return_in_14 ~ AdmitAgeNBR + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC + (1|PersonID) + AppointmentLocationCVDisplayCVDSC + ICD9.priority + Dept + HeartFailure,
-              df.sdc.flattened)
+df.sdc.flattened <- df.sdc.flattened %>% 
+  mutate(
+    return_str = ifelse(
+      return_in_14_sameICD > 0,
+      "Returned same ICD10",
+      ifelse(
+        return_in_14 > 0,
+        "Returned new ICD10",
+        "Did not return"
+      )
+    )
+  ) 
+
+lmer.model <-  lmer(return_str ~ 
+      AdmitAgeNBR + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC + 
+      (1|PersonID) + AppointmentLocationCVDisplayCVDSC + ICD9.priority + Dept + HeartFailure,
+      df.sdc.flattened
+    )
 
 
 ```
