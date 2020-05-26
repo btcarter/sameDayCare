@@ -89,6 +89,7 @@ df.processed <- df %>%
       )
     )
   ) %>%
+  droplevels() %>% 
   filter(
     BeginDTS > "2016-12-31",
     EncounterType %in% c("Outpatient Clinic", "Inpatient")
@@ -148,7 +149,7 @@ df.sdc <- df.processed %>% # find SDC pts
     PersonID,
     BeginDTS,
     AdmitHourNBR
-  ) 
+  )
 
 # Demographics dataframe ####
 
@@ -397,11 +398,12 @@ tab <- compareGroups::createTable(DESC)
 
 compareGroups::export2md(tab, caption = "Summary descriptives of patients by whether or not they returned within 14 days.")
 
-female <- update(tab, x = update(DESC, . ~ . - GenderDSC, subset = GenderDSC == "FEMALE"), show.n = FALSE)
-male <- update(tab, x = update(DESC, . ~ . - GenderDSC, subset = GenderDSC == "MALE"))
+female <- update(tab, x = update(DESC, . ~ . - GenderDSC, subset = GenderDSC == "FEMALE",  simplify = FALSE), show.n = FALSE, show.p.overall = FALSE)
+male <- update(tab, x = update(DESC, . ~ . - GenderDSC, subset = GenderDSC == "MALE", simplify = FALSE), show.p.overall = FALSE)
 
-test <- cbind("Females" = female, "Males" = male)
-print(male)
+genders <- cbind("Females" = female, "Males" = male)
+
+compareGroups::export2md(genders, caption = "Summary descriptives by gender.")
 ```
 
 ### When did the encounters happen?
@@ -493,7 +495,25 @@ df.sdc.flattened.filtered <- df.sdc.flattened %>%
   ) %>% 
   slice(
     1
+  ) %>% 
+  droplevels() 
+  mutate(
+    return_str = ifelse(
+      return_in_14_sameICD > 0,
+      "Returned same ICD10",
+      ifelse(
+        return_in_14 > 0,
+        "Returned new ICD10",
+        "Did not return"
+      )
+    )
   )
+
+linear.model <- lm(
+  return_str ~ AdmitAgeNBR + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC + AppointmentLocationCVDisplayCVDSC + ICD9.priority + Dept + HeartFailure,
+  data = df.sdc.flattened.filtered
+)
+
 ```
 
 Some PersonID's appear in the dataset multiple times. This could bias the dataset by giving too much weight to that participant's contribution and inflate Type I error. To guard against this, I chose to only retain the first encounter with Same Day Care or Express Care for each PersonID. All other observations were then removed from the dataset. This resulted in `r nrow(df.sdc.flattened.filtered)` observations in the final data set.
