@@ -342,7 +342,7 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
         lead(BeginDTS) - BeginDTS > 0 &
         lead(PersonID) == PersonID &
         AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
-        !(AdmitType %in% c("Elective", "D", "Semi-Urgent CMCM")),
+        !(lead(AdmitType) %in% c("Elective", "D", "Semi-Urgent CMCM")),
       TRUE,
       FALSE
     ),
@@ -352,7 +352,7 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
         lead(PersonID) == PersonID &
         AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
         ICD9.priority == lead(ICD9.priority) &
-        !(AdmitType %in% c("Elective", "D", "Semi-Urgent CMCM")),
+        !(lead(AdmitType) %in% c("Elective", "D", "Semi-Urgent CMCM")),
       TRUE,
       FALSE
     ),
@@ -362,7 +362,7 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
         lead(PersonID) == PersonID &
         AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
         ICD9.priority != lead(ICD9.priority) &
-        !(AdmitType %in% c("Elective", "D", "Semi-Urgent CMCM")),
+        !(lead(AdmitType) %in% c("Elective", "D", "Semi-Urgent CMCM")),
       TRUE,
       FALSE
     ),
@@ -372,7 +372,85 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
     Diabetes = as.logical(Diabetes)
   ) %>% 
   mutate(
-    ICD_family = gsub("(\\w\\d{2}).\\d+","\\1",ICD9.priority)
+    ICD_family = gsub("(\\w\\d{2}).\\d+","\\1", ICD9.priority)
+  )
+
+df.sdc.flattened.test <- df.sdc.icd9.list %>%
+  left_join(
+    df.sdc.admitType,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  ) %>% 
+  left_join(
+    df.sdc.icd9.priority,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  ) %>% 
+  left_join(
+    df.sdc.diagnosisdsc.list,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  ) %>% 
+  left_join(
+    df.sdc.diagnosisfreetxt.list,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  ) %>% 
+  left_join(
+    df.sdc.reasonforvisit.list,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  ) %>%
+  left_join(
+    df.sdc.dept,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  ) %>% 
+  left_join(
+    df.sdc.demographics,
+    by = c("PersonID")
+  ) %>%
+  ungroup() %>% 
+  arrange(
+    PersonID,
+    BeginDTS,
+    AppointmentLocationCVDisplayCVDSC
+  ) %>% 
+  mutate(
+    BeginDTS = as.POSIXct(BeginDTS)
+  ) %>% 
+  arrange(
+    PersonID,
+    BeginDTS
+  ) %>% 
+  mutate(
+    return_in_14 = ifelse(
+      lead(BeginDTS) - BeginDTS <= 1209600 &
+        lead(BeginDTS) - BeginDTS > 0 &
+        lead(PersonID) == PersonID &
+        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities,
+      TRUE,
+      FALSE
+    ),
+    return_in_14_sameICD = ifelse(
+      lead(BeginDTS) - BeginDTS <= 1209600 &
+        lead(BeginDTS) - BeginDTS > 0 &
+        lead(PersonID) == PersonID &
+        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
+        ICD9.priority == lead(ICD9.priority),
+      TRUE,
+      FALSE
+    ),
+    return_in_14_diffICD = ifelse(
+      lead(BeginDTS) - BeginDTS <= 1209600 &
+        lead(BeginDTS) - BeginDTS > 0 &
+        lead(PersonID) == PersonID &
+        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
+        ICD9.priority != lead(ICD9.priority),
+      TRUE,
+      FALSE
+    ),
+    Facility = ifelse(AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities, "SDC or EC Facility", "Other Facility"),
+    HeartFailure = as.factor(as.logical(HeartFailure)),
+    COPD = as.logical(COPD),
+    Diabetes = as.logical(Diabetes)
+  ) %>% 
+  mutate(
+    ICD_family = gsub("(\\w\\d{2}).\\d+","\\1", ICD9.priority)
   )
 
 ```
@@ -389,6 +467,11 @@ Variables were then created to code for ICD-10 family. Encounters not at an SDC?
 
 ```{r}
 df.sdc.flattened <- df.sdc.flattened %>% 
+  filter(
+    Facility == "SDC or EC Facility"
+  )
+
+df.sdc.flattened.test <- df.sdc.flattened.test %>% 
   filter(
     Facility == "SDC or EC Facility"
   )
