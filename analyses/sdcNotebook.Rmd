@@ -294,9 +294,6 @@ df.sdc.reasonforvisit.list <- df.sdc %>%
     ReasonForVisitDSC = paste(ReasonForVisitDSC, collapse = "; ")
   )
 
-
-
-
 df.sdc.flattened <- df.sdc.icd9.list %>%
   left_join(
     df.sdc.admitType,
@@ -344,7 +341,8 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
       lead(BeginDTS) - BeginDTS <= 1209600 &
         lead(BeginDTS) - BeginDTS > 0 &
         lead(PersonID) == PersonID &
-        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities,
+        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
+        !(AdmitType %in% c("Elective", "D", "Semi-Urgent CMCM")),
       TRUE,
       FALSE
     ),
@@ -353,7 +351,8 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
         lead(BeginDTS) - BeginDTS > 0 &
         lead(PersonID) == PersonID &
         AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
-        ICD9.priority == lead(ICD9.priority),
+        ICD9.priority == lead(ICD9.priority) &
+        !(AdmitType %in% c("Elective", "D", "Semi-Urgent CMCM")),
       TRUE,
       FALSE
     ),
@@ -362,7 +361,8 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
         lead(BeginDTS) - BeginDTS > 0 &
         lead(PersonID) == PersonID &
         AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
-        ICD9.priority != lead(ICD9.priority),
+        ICD9.priority != lead(ICD9.priority) &
+        !(AdmitType %in% c("Elective", "D", "Semi-Urgent CMCM")),
       TRUE,
       FALSE
     ),
@@ -370,213 +370,35 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
     HeartFailure = as.factor(as.logical(HeartFailure)),
     COPD = as.logical(COPD),
     Diabetes = as.logical(Diabetes)
+  ) %>% 
+  mutate(
+    ICD_family = gsub("(\\w\\d{2}).\\d+","\\1",ICD9.priority)
   )
 
 ```
 
 `r nrow(df.sdc)` patient records were selected via SQL query from the electronic health record (EHR) on the basis of a visit to a Same Day Care or Express Care facility between the years 2017-2019. Entries in the EHR without entered data or with "NULL" were then recoded as `NA`. Records created for the same patient, with the same date and time stamp and location were then combined into a single observation. ICD-10 codes were combined into a single array in the order of their priority, and a new variable was created to code for the priority ICD-10 code. This reduced the total number of observations to `r nrow(df.sdc.flattened)` individual true patient encounters.
 
-A logical indicator variable was then created to show if the patient returned to a Billings Clinic facility within 14 days of a visit to a same day care or Express Care Facility. A similar variable was also created to indicate if that patient returned within 14 days and had the same priority ICD-10 code. The following facilities were coded as same day care facilities:
+A logical indicator variable was then created to show if the patient made an unexpected inpatient visit to a Billings Clinic Facility (i.e. AdmitType was not `Elective`, EncounterType was `Inpatient`) within 14 days of a visit to a SDC/EC facility. A similar variable was also created to indicate if that patient returned within 14 days and had the same priority ICD-10 code. Another variable was created to indicate if the return had a different priority ICD-10 code. The following facilities were coded as same day care facilities:
 
 ```{r}
 knitr::kable(sdc.ec.facilities, col.names = c("Same Day Care and Express Care Facilities"))
 ```
 
-# Analysis
+Variables were then created to code for ICD-10 family. Encounters not at an SDC?EC facility were then eliminated from the dataset.
 
-## Descriptive statistics
-
-```{r encountersPerPerson}
-encounterStats <- df.sdc.flattened %>% 
-  group_by(
-    PersonID
-  ) %>% 
-  summarise(
-    Encounters = n(),
-    Encounters_sdc = sum(
-      ifelse(AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities,
-             TRUE,
-             FALSE)
-    ),
-    return_after_sdc = sum(return_in_14),
-    return_after_sdc_sameICD = sum(return_in_14_sameICD)
-  )
-
-df.sdc.demographics.combined <- df.sdc.demographics %>% 
-  left_join(
-    encounterStats,
-    by = c("PersonID")
-  ) %>% 
-  mutate(
-    sdc_returns_str = ifelse(return_after_sdc_sameICD > 0,
-                                     "Returned in 14 days with same ICD-10",
-                                     ifelse(return_after_sdc > 0,
-                                            "Returned in 14 days",
-                                            "Did not return")
-                                     )
-  )
-
-```
-
-### Who are the SDC or EC patients?
-
-```{r summStats}
-DESC <- compareGroups::compareGroups(
-  sdc_returns_str ~ AdmitAgeNBR + Encounters + Encounters_sdc + return_after_sdc + return_after_sdc_sameICD + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC,
-  df.sdc.demographics.combined, 
-  max.xlev = 22
-  )
-
-tab <- compareGroups::createTable(DESC)
-
-compareGroups::export2md(tab, caption = "Summary descriptives of patients by whether or not they returned within 14 days.")
-
-female <- update(tab, x = update(DESC, . ~ . - GenderDSC, subset = GenderDSC == "FEMALE",  simplify = FALSE), show.n = FALSE, show.p.overall = FALSE)
-male <- update(tab, x = update(DESC, . ~ . - GenderDSC, subset = GenderDSC == "MALE", simplify = FALSE), show.p.overall = FALSE)
-
-genders <- cbind("Females" = female, "Males" = male)
-
-compareGroups::export2md(genders, caption = "Summary descriptives by gender.")
-```
-
-### When did the encounters happen?
-
-```{r, fig.cap="test"}
-df.sdc.flattened %>% 
-  mutate(
-    BeginDTS = as.Date(BeginDTS)
-  ) %>% 
-  group_by(
-    BeginDTS,
-    Facility
-  ) %>% 
-  summarise(
-    n = n()
-  ) %>% 
-  ungroup %>% 
-  ggplot(
-    aes(
-      BeginDTS,
-      n,
-      color = Facility
-    )
-  ) +
-  geom_line(alpha = 0.6) +
-  geom_point(alpha = 0.8) +
-  theme_classic() +
-  labs(
-    title = "Patient encounters",
-    x = "Date",
-    y = "Number of encounters",
-    color = "Facility"
-  )
-```
-
-### Priority ICD9 codes
-
-#### For SDC or EC facilities
 ```{r}
-df.sdc.flattened %>%
+df.sdc.flattened <- df.sdc.flattened %>% 
   filter(
     Facility == "SDC or EC Facility"
-  ) %>% 
-  group_by(
-    ICD9.priority
-    ) %>%
-  count() %>% 
-  arrange(
-    desc(n),
-    ICD9.priority
-  )
-```
-
-#### All other facilities
-
-```{r}
-df.sdc.flattened %>%
-  filter(
-    Facility == "Other Facility"
-  ) %>% 
-  group_by(
-    ICD9.priority
-    ) %>%
-  count() %>% 
-  arrange(
-    desc(n),
-    ICD9.priority
-  )
-```
-
-
-# Predictive modeling
-
-## Natural Language Processing: How many groups are there?
-
-## Linear Model
-
-```{r}
-df.sdc.flattened.filtered <- df.sdc.flattened %>% 
-  filter(
-    AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities
-  ) %>% 
-  arrange(
-    PersonID,
-    BeginDTS
-  ) %>% 
-  group_by(
-    PersonID
-  ) %>% 
-  slice(
-    1
-  ) %>% 
-  droplevels() %>% 
-  mutate(
-    return_str = ifelse(
-      return_in_14_sameICD > 0,
-      "Returned same ICD10",
-      ifelse(
-        return_in_14 > 0,
-        "Returned new ICD10",
-        "Did not return"
-      )
-    )
   )
 
-linearModel <- glm(
-  return_in_14 ~ AdmitAgeNBR + GenderDSC + RaceDSC + MaritalStatusDSC + ICD9.priority + Dept,
-  data = df.sdc.flattened.filtered,
-  family = "binomial"
-)
-
+write.csv(
+  df.sdc.flattened, 
+  file.path(
+    data.dir.path,
+    "sdc.2017-2019.2020-06-10.csv"
+    ),
+  quote = FALSE
+  )
 ```
-
-Some PersonID's appear in the dataset multiple times. This could bias the dataset by giving too much weight to that participant's contribution and inflate Type I error. To guard against this, I chose to only retain the first encounter with Same Day Care or Express Care for each PersonID. All other observations were then removed from the dataset. This resulted in `r nrow(df.sdc.flattened.filtered)` observations in the final data set.
-
-## Linear Mixed-Effects Model
-
-```{r}
-library(lme4)
-library(lmerTest)
-
-df.sdc.flattened <- df.sdc.flattened %>% 
-  mutate(
-    return_str = ifelse(
-      return_in_14_sameICD > 0,
-      "Returned same ICD10",
-      ifelse(
-        return_in_14 > 0,
-        "Returned new ICD10",
-        "Did not return"
-      )
-    )
-  ) 
-
-lmer.model <-  lmer(return_str ~ 
-      AdmitAgeNBR + GenderDSC + RaceDSC + EthnicityDSC + MaritalStatusDSC + 
-      (1|PersonID) + AppointmentLocationCVDisplayCVDSC + ICD9.priority + Dept + HeartFailure,
-      df.sdc.flattened
-    )
-
-
-```
-
