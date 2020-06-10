@@ -1,10 +1,10 @@
 ---
 title: "Same Day Care 2.0"
 output:
-  html_notebook:
-    code_folding: hide
   html_document:
     df_print: paged
+  html_notebook:
+    code_folding: hide
 ---
 
 ```{r setup}
@@ -15,7 +15,7 @@ library(ggplot2)
 
 # paths ####
 data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", "CSI & David Hedges - Same Day Care Project", "data")
-df.path <- file.path(data.dir.path, "All.2016-2019.2020-05-19.csv")
+df.path <- file.path(data.dir.path, "All.2016-2019.2020-06-10.csv")
 out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", "CSI & David Hedges - Same Day Care Project", "results")
 ```
 
@@ -36,6 +36,7 @@ cols <- c(
   "ResourceTypeFLG",
   "Dept",
   "AppointmentLocationCVDisplayCVDSC",
+  "AdmitType",
   "EncounterType",
   "PersonID",
   "EthnicityDSC",
@@ -252,13 +253,30 @@ df.sdc.dept <- df.sdc %>%
   ) %>%
   arrange(
     DiagnosisPrioritySEQ
-  )%>% 
+  ) %>% 
   count(
     Dept
   ) %>% 
   summarise(
     Dept = paste(Dept, collapse = "; ")
   )
+
+df.sdc.admitType <- df.sdc %>% 
+  group_by(
+    PersonID,
+    BeginDTS,
+    AppointmentLocationCVDisplayCVDSC
+  ) %>%
+  arrange(
+    DiagnosisPrioritySEQ
+  ) %>% 
+  count(
+    AdmitType
+  ) %>% 
+  summarise(
+    AdmitType = paste(AdmitType, collapse = "; ")
+  )
+  
 
 df.sdc.reasonforvisit.list <- df.sdc %>% 
   group_by(
@@ -277,7 +295,13 @@ df.sdc.reasonforvisit.list <- df.sdc %>%
   )
 
 
+
+
 df.sdc.flattened <- df.sdc.icd9.list %>%
+  left_join(
+    df.sdc.admitType,
+    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+  ) %>% 
   left_join(
     df.sdc.icd9.priority,
     by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
