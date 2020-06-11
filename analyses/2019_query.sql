@@ -1,3 +1,16 @@
+-- CTEs to assemble smaller bites for processing
+WITH date AS (SELECT
+	BeginDTS
+	,PersonID
+	,EncounterID
+FROM
+	Cerner.Schedule.Appointment
+WHERE
+	BeginDTS BETWEEN '2017-01-01' AND '2019-12-31'
+	)
+
+
+
 SELECT DISTINCT				
   --date info
 	SA.BeginDTS
@@ -31,7 +44,7 @@ SELECT DISTINCT
 	,SH.DiagnosisDSC AS DiagnosisDSC
 	,DXB.DiagnosisFreeTXT AS DiagnosisFreeTXT
   -- prexisting coniditions
-	,CASE WHEN	SRF.FirstCOPDDiagnosisDT IS NOT NULL THEN 1 ELSE 0 END AS COPD
+	,CASE WHEN SRF.FirstCOPDDiagnosisDT IS NOT NULL THEN 1 ELSE 0 END AS COPD
 	,CASE WHEN CVS.DiagnosisDSC IS NOT NULL THEN 1 ELSE 0 END AS HeartFailure
 	,CASE WHEN DBS.EventNM IS NOT NULL THEN 1 ELSE 0 END AS Diabetes
 	
