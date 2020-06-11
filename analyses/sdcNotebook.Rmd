@@ -264,22 +264,6 @@ df.sdc.diagnosisfreetxt.list <- df.sdc %>%
     DiagnosisFreeTXT = paste(DiagnosisFreeTXT, collapse = "; ")
   )
   
-df.sdc.dept <- df.sdc %>% 
-  group_by(
-    PersonID,
-    BeginDTS,
-    LocationCVDisplayDSC
-  ) %>%
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  count(
-    Dept
-  ) %>% 
-  summarise(
-    Dept = paste(Dept, collapse = "; ")
-  )
-
 df.sdc.admitType <- df.sdc %>% 
   group_by(
     PersonID,
@@ -334,10 +318,6 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
     df.sdc.reasonforvisit.list,
     by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>%
-  left_join(
-    df.sdc.dept,
-    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
-  ) %>% 
   left_join(
     df.sdc.demographics,
     by = c("PersonID")
