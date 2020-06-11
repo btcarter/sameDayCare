@@ -12,7 +12,8 @@ SELECT DISTINCT
 	,SA.ActiveIndicatorCD			
 	,RES.ResourceTypeFLG			
 	,RESDEPT.Dept			
-	,SA2.AppointmentLocationCVDisplayDSC
+	,EN.LocationCVDisplayDSC
+	,EN.FacilityLocationCVDSC
 	,EN.AdmitTypeCVDisplayDSC
 	,EN.EncounterTypeCVDSC AS EncounterType
 	--patient information
