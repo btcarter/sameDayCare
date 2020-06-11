@@ -394,10 +394,6 @@ df.sdc.flattened.test <- df.sdc.icd9.list %>%
   left_join(
     df.sdc.reasonforvisit.list,
     by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
-  ) %>%
-  left_join(
-    df.sdc.dept,
-    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>% 
   left_join(
     df.sdc.demographics,
