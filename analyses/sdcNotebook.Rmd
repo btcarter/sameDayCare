@@ -141,7 +141,7 @@ get.sdc.pts <- function(x){
     # select IDs who used SDC ####
   ids <- x %>% 
     filter(
-      AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities
+      LocationCVDisplayDSC %in% sdc.ec.facilities
     ) %>%
     distinct(
       PersonID
@@ -202,7 +202,7 @@ df.sdc.icd9.priority <- df.sdc %>%
   group_by(
     PersonID,
     BeginDTS,
-    AppointmentLocationCVDisplayCVDSC
+    LocationCVDisplayDSC
   ) %>% 
   arrange(
     DiagnosisPrioritySEQ
@@ -211,7 +211,7 @@ df.sdc.icd9.priority <- df.sdc %>%
   select(
     PersonID,
     BeginDTS,
-    AppointmentLocationCVDisplayCVDSC,
+    LocationCVDisplayDSC,
     ICD9.priority = ICD9CD
   ) %>% 
   ungroup()
@@ -220,7 +220,7 @@ df.sdc.icd9.list <- df.sdc %>%
   group_by(
     PersonID,
     BeginDTS,
-    AppointmentLocationCVDisplayCVDSC
+    LocationCVDisplayDSC
   ) %>%
   arrange(
     DiagnosisPrioritySEQ
@@ -236,7 +236,7 @@ df.sdc.diagnosisdsc.list <- df.sdc %>%
   group_by(
     PersonID,
     BeginDTS,
-    AppointmentLocationCVDisplayCVDSC
+    LocationCVDisplayDSC
   ) %>%
   arrange(
     DiagnosisPrioritySEQ
@@ -252,7 +252,7 @@ df.sdc.diagnosisfreetxt.list <- df.sdc %>%
   group_by(
     PersonID,
     BeginDTS,
-    AppointmentLocationCVDisplayCVDSC
+    LocationCVDisplayDSC
   ) %>%
   arrange(
     DiagnosisPrioritySEQ
@@ -268,7 +268,7 @@ df.sdc.dept <- df.sdc %>%
   group_by(
     PersonID,
     BeginDTS,
-    AppointmentLocationCVDisplayCVDSC
+    LocationCVDisplayDSC
   ) %>%
   arrange(
     DiagnosisPrioritySEQ
@@ -284,7 +284,7 @@ df.sdc.admitType <- df.sdc %>%
   group_by(
     PersonID,
     BeginDTS,
-    AppointmentLocationCVDisplayCVDSC
+    LocationCVDisplayDSC
   ) %>%
   arrange(
     DiagnosisPrioritySEQ
@@ -301,7 +301,7 @@ df.sdc.reasonforvisit.list <- df.sdc %>%
   group_by(
     PersonID,
     BeginDTS,
-    AppointmentLocationCVDisplayCVDSC
+    LocationCVDisplayDSC
   ) %>%
   arrange(
     DiagnosisPrioritySEQ
@@ -316,27 +316,27 @@ df.sdc.reasonforvisit.list <- df.sdc %>%
 df.sdc.flattened <- df.sdc.icd9.list %>%
   left_join(
     df.sdc.admitType,
-    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>% 
   left_join(
     df.sdc.icd9.priority,
-    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>% 
   left_join(
     df.sdc.diagnosisdsc.list,
-    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>% 
   left_join(
     df.sdc.diagnosisfreetxt.list,
-    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>% 
   left_join(
     df.sdc.reasonforvisit.list,
-    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>%
   left_join(
     df.sdc.dept,
-    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>% 
   left_join(
     df.sdc.demographics,
@@ -346,7 +346,7 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
   arrange(
     PersonID,
     BeginDTS,
-    AppointmentLocationCVDisplayCVDSC
+    LocationCVDisplayDSC
   ) %>% 
   mutate(
     BeginDTS = as.POSIXct(BeginDTS)
@@ -360,7 +360,7 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
       lead(BeginDTS) - BeginDTS <= 1209600 &
         lead(BeginDTS) - BeginDTS > 0 &
         lead(PersonID) == PersonID &
-        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
+        LocationCVDisplayDSC %in% sdc.ec.facilities &
         !(lead(AdmitType) %in% c("Elective", "D", "Semi-Urgent CMCM")),
       TRUE,
       FALSE
@@ -369,7 +369,7 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
       lead(BeginDTS) - BeginDTS <= 1209600 &
         lead(BeginDTS) - BeginDTS > 0 &
         lead(PersonID) == PersonID &
-        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
+        LocationCVDisplayDSC %in% sdc.ec.facilities &
         ICD9.priority == lead(ICD9.priority) &
         !(lead(AdmitType) %in% c("Elective", "D", "Semi-Urgent CMCM")),
       TRUE,
@@ -379,13 +379,13 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
       lead(BeginDTS) - BeginDTS <= 1209600 &
         lead(BeginDTS) - BeginDTS > 0 &
         lead(PersonID) == PersonID &
-        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
+        LocationCVDisplayDSC %in% sdc.ec.facilities &
         ICD9.priority != lead(ICD9.priority) &
         !(lead(AdmitType) %in% c("Elective", "D", "Semi-Urgent CMCM")),
       TRUE,
       FALSE
     ),
-    Facility = ifelse(AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities, "SDC or EC Facility", "Other Facility"),
+    Facility = ifelse(LocationCVDisplayDSC %in% sdc.ec.facilities, "SDC or EC Facility", "Other Facility"),
     HeartFailure = as.factor(as.logical(HeartFailure)),
     COPD = as.logical(COPD),
     Diabetes = as.logical(Diabetes)
@@ -397,27 +397,27 @@ df.sdc.flattened <- df.sdc.icd9.list %>%
 df.sdc.flattened.test <- df.sdc.icd9.list %>%
   left_join(
     df.sdc.admitType,
-    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>% 
   left_join(
     df.sdc.icd9.priority,
-    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>% 
   left_join(
     df.sdc.diagnosisdsc.list,
-    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>% 
   left_join(
     df.sdc.diagnosisfreetxt.list,
-    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>% 
   left_join(
     df.sdc.reasonforvisit.list,
-    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>%
   left_join(
     df.sdc.dept,
-    by = c("PersonID", "BeginDTS", "AppointmentLocationCVDisplayCVDSC")
+    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
   ) %>% 
   left_join(
     df.sdc.demographics,
@@ -427,7 +427,7 @@ df.sdc.flattened.test <- df.sdc.icd9.list %>%
   arrange(
     PersonID,
     BeginDTS,
-    AppointmentLocationCVDisplayCVDSC
+    LocationCVDisplayDSC
   ) %>% 
   mutate(
     BeginDTS = as.POSIXct(BeginDTS)
@@ -441,7 +441,7 @@ df.sdc.flattened.test <- df.sdc.icd9.list %>%
       lead(BeginDTS) - BeginDTS <= 1209600 &
         lead(BeginDTS) - BeginDTS > 0 &
         lead(PersonID) == PersonID &
-        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities,
+        LocationCVDisplayDSC %in% sdc.ec.facilities,
       TRUE,
       FALSE
     ),
@@ -449,7 +449,7 @@ df.sdc.flattened.test <- df.sdc.icd9.list %>%
       lead(BeginDTS) - BeginDTS <= 1209600 &
         lead(BeginDTS) - BeginDTS > 0 &
         lead(PersonID) == PersonID &
-        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
+        LocationCVDisplayDSC %in% sdc.ec.facilities &
         ICD9.priority == lead(ICD9.priority),
       TRUE,
       FALSE
@@ -458,12 +458,12 @@ df.sdc.flattened.test <- df.sdc.icd9.list %>%
       lead(BeginDTS) - BeginDTS <= 1209600 &
         lead(BeginDTS) - BeginDTS > 0 &
         lead(PersonID) == PersonID &
-        AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities &
+        LocationCVDisplayDSC %in% sdc.ec.facilities &
         ICD9.priority != lead(ICD9.priority),
       TRUE,
       FALSE
     ),
-    Facility = ifelse(AppointmentLocationCVDisplayCVDSC %in% sdc.ec.facilities, "SDC or EC Facility", "Other Facility"),
+    Facility = ifelse(LocationCVDisplayDSC %in% sdc.ec.facilities, "SDC or EC Facility", "Other Facility"),
     HeartFailure = as.factor(as.logical(HeartFailure)),
     COPD = as.logical(COPD),
     Diabetes = as.logical(Diabetes)
