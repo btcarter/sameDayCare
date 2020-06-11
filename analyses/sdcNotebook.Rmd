@@ -15,7 +15,7 @@ library(ggplot2)
 
 # paths ####
 data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", "CSI & David Hedges - Same Day Care Project", "data")
-df.path <- file.path(data.dir.path, "All.2016-2019.2020-06-10.csv")
+df.path <- file.path(data.dir.path, "All.2016-2019.2020-06-11.csv")
 out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", "CSI & David Hedges - Same Day Care Project", "results")
 ```
 
@@ -60,7 +60,8 @@ df <- read.csv2(
   df.path,
   header = FALSE,
   sep = ",",
-  col.names = cols
+  col.names = cols,
+  stringsAsFactors = FALSE
   )
 
 ```
@@ -93,30 +94,47 @@ df.processed <- df %>%
   ) %>%
   droplevels() %>% 
   filter(
-    BeginDTS > "2016-12-31",
-    EncounterType %in% c("Outpatient Clinic", "Inpatient")
+    BeginDTS > "2016-12-31"
   )
 
 # make a list of SDC/EC facilities
-# sd.ec.facilities <- df %>% 
+# sdc.ec.facilities <- df %>%
 #   filter(
-#     str_detect(AppointmentLocationCVDisplayCVDSC,
+#     str_detect(LocationCVDisplayDSC,
 #                "SDC|Same Day Care|EC|Express Care")
 #   ) %>%
 #   select(
-#     AppointmentLocationCVDisplayCVDSC
+#     LocationCVDisplayDSC
 #   ) %>%
 #   distinct()
 
-sdc.ec.facilities <- c("Heights Express Care",
-                       "SDC Downtown",
-                       "SDC West",
-                       "SDC Heights",
-                       "Grand Express Care",
-                       "Billings Clinic Downtown EC",
-                       "Central Express Care",
-                       "SDC Downtown Nurse",
-                       "SDC West Nurse")
+sdc.ec.facilities <- c(
+  "SDC West",
+  "Billings Clinic Downtown EC",
+  "SDC Heights",
+  "Grand Express Care",
+  "SDC Downtown",
+  "Central Express Care",
+  "Heights Express Care",
+  "SDC Downtown Nurse",
+  "Pediatric Cardiology US/EC",
+  "SDC West Nurse",
+  "Miles City Branch EC",
+  "WE SDC",
+  "GRHC EC",
+  "HTS SDC",
+  "HSMH SDC"
+)
+
+# sdc.ec.facilities <- c("Heights Express Care",
+#                        "SDC Downtown",
+#                        "SDC West",
+#                        "SDC Heights",
+#                        "Grand Express Care",
+#                        "Billings Clinic Downtown EC",
+#                        "Central Express Care",
+#                        "SDC Downtown Nurse",
+#                        "SDC West Nurse")
 
 # make functions ####
 get.sdc.pts <- function(x){
