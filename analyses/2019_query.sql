@@ -1,15 +1,107 @@
 -- CTEs to assemble smaller bites for processing
-WITH date AS (SELECT
+-- appointment information
+WITH date AS (
+SELECT
 	BeginDTS
 	,PersonID
 	,EncounterID
+	,ScheduleAppointmentID
+	,ActiveIndicatorCD
 FROM
 	Cerner.Schedule.Appointment
 WHERE
 	BeginDTS BETWEEN '2017-01-01' AND '2019-12-31'
-	)
+	AND RoleMeaningDSC = 'PATIENT'
+	AND ActiveIndicatorCD = 1
+)
+	
+-- demographic information
+WITH person AS (
+SELECT
+  PersonID
+  ,EthnicGroupCVDisplayDSC AS Ethnicity
+	,LanguageCVDisplayDSC AS Language
+	,MaritalTypeCVDisplayDSC AS Marital_Status
+	,RaceCVDisplayDSC AS Race
+	,SexCVDisplayDSC as Sex
+	,ReligionCVDisplayDSC AS Religion
+FROM
+  [Cerner].[Person].[PersonBASE]
+)
 
+-- encounter information
+WITH encounter AS (
+SELECT
+  EncounterID
+  ,LocationCVDisplayDSC
+	,FacilityLocationCVDSC
+	,AdmitTypeCVDisplayDSC
+	,EncounterTypeCVDSC
+	,ReasonForVisitDSC
+FROM
+  [Cerner].[Encounter].[EncounterBASE]
+)
 
+-- diagnosis information
+WITH d1 AS (
+SELECT
+  PersonID
+  ,DiagnosisID
+  ,EncounterID
+  ,DiagnosisFreeTXT
+  ,DiagnosisPrioritySEQ
+)
+
+WITH d2 AS (
+SELECT
+  PersonID
+  ,EncounterID
+  ,DiagnosisID
+  ,DiagnosisCD
+  ,DiagnosisType
+  ,DiagnosisDSC
+  ,DiagnosisNormDSC
+FROM
+  Shared.Clinical.DiagnosisBASE
+)
+
+WITH respiratoryFailure AS (
+SELECT
+  PatientID
+  ,FirstCOPDDiagnosisDT IS NOT NULL THEN 1 ELSE 0 END AS RespiratoryFailure
+  ,CharlsonDeyoRiskScoreNBR
+  ,ReadmittedFLG_HW
+  ,ReadmittedFLG_ED
+  ,ReadmittedFLG_AV
+  ,ReadmittedFLG_AMI
+  ,ReadmittedFLG_CABG
+  ,ReadmittedFLG_COPD
+  ,ReadmittedFLG_HF
+  ,ReadmittedFLG_InpPsych
+  ,ReadmittedFLG_PN
+  ,ReadmittedFLG_Stroke
+  ,ReadmittedFLG_THTK
+FROM
+SAM.Readmissions.SummaryIndex
+)
+
+WITH heartFailure AS (
+SELECT
+  PatientID
+  ,EncounterID
+  ,CASE WHEN DiagnosisCD IS NOT NULL THEN 1 ELSE 0 AS HeartFailure
+FROM
+  SAM.Cardiovascular.HeartFailureEventDiagnosisBASE
+)
+
+WITH diabetes AS (
+SELECT
+  PatientID
+  ,PatientEncoutnerID
+  ,EventSubType AS Diabetes
+FROM
+SAM.DiabetesBTC.EventDiabetes
+)
 
 SELECT DISTINCT				
   --date info
@@ -54,7 +146,7 @@ FROM
 		ON SA.PersonID = Personnel.PersonID		
 	LEFT JOIN [Cerner].[Schedule].[Resource] RES			
 		ON SA.ResourceCVCD = RES.ResourceCVCD		
-	LEFT JOIN [SAM].[PatientAccess].[ResourceToDeptCrosswalk] RESDEPT		
+	LEFT JOIN [SAM].[PatientAccess].[ResourceToDeptCrosswalk] RESDEPT
 		ON SA.ResourceCVCD = RESDEPT.ResourceCVCD	
 	LEFT JOIN [Cerner].[Person].[Person] PATIENT	
 		ON SA.PersonID = PATIENT.PersonID
