@@ -50,25 +50,30 @@ SELECT
   ,EncounterID
   ,DiagnosisFreeTXT
   ,DiagnosisPrioritySEQ
+FROM
+  Cerner.Clinical.DiagnosisBASE
 )
 
+-- more dx information
 WITH d2 AS (
 SELECT
-  PersonID
+  PatientID
+  ,DiagnosisID
   ,EncounterID
   ,DiagnosisID
   ,DiagnosisCD
-  ,DiagnosisType
+  ,DiagnosisTypeDSC
   ,DiagnosisDSC
   ,DiagnosisNormDSC
 FROM
   Shared.Clinical.DiagnosisBASE
 )
 
+-- respiratory tables comorbidities
 WITH respiratoryFailure AS (
 SELECT
   PatientID
-  ,FirstCOPDDiagnosisDT IS NOT NULL THEN 1 ELSE 0 END AS RespiratoryFailure
+  ,CASE WHEN PatientID IS NOT NULL THEN 1 ELSE 0 END AS RespiratoryFailure
   ,CharlsonDeyoRiskScoreNBR
   ,ReadmittedFLG_HW
   ,ReadmittedFLG_ED
@@ -85,23 +90,40 @@ FROM
 SAM.Readmissions.SummaryIndex
 )
 
+-- have they ever had an encounter with a heart failure diagnosis
 WITH heartFailure AS (
 SELECT
   PatientID
   ,EncounterID
-  ,CASE WHEN DiagnosisCD IS NOT NULL THEN 1 ELSE 0 AS HeartFailure
+  ,CASE WHEN DiagnosisCD IS NOT NULL THEN 1 ELSE 0 END AS HeartFailure
 FROM
   SAM.Cardiovascular.HeartFailureEventDiagnosisBASE
 )
 
+
+-- ever diagnosed with diabetes?
 WITH diabetes AS (
 SELECT
   PatientID
-  ,PatientEncoutnerID
-  ,EventSubType AS Diabetes
+  ,REPLACE(PatientEncounterID, 'EN', '')
+  ,EventSubTypeNM AS Diabetes
 FROM
 SAM.DiabetesBTC.EventDiabetes
 )
+
+-- Now tie them all together
+
+
+
+
+
+
+
+
+
+
+
+-- original query is below, to be deleted once all above is working
 
 SELECT DISTINCT				
   --date info
