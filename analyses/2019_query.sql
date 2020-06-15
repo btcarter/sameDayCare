@@ -1,6 +1,6 @@
 -- CTEs to assemble smaller bites for processing
 -- appointment information
-WITH date AS (
+WITH day AS (
 SELECT
 	BeginDTS
 	,PersonID
@@ -13,10 +13,10 @@ WHERE
 	BeginDTS BETWEEN '2017-01-01' AND '2019-12-31'
 	AND RoleMeaningDSC = 'PATIENT'
 	AND ActiveIndicatorCD = 1
-)
+),
 	
 -- demographic information
-WITH person AS (
+person AS (
 SELECT
   PersonID
   ,EthnicGroupCVDisplayDSC AS Ethnicity
@@ -27,10 +27,10 @@ SELECT
 	,ReligionCVDisplayDSC AS Religion
 FROM
   [Cerner].[Person].[PersonBASE]
-)
+),
 
 -- encounter information
-WITH encounter AS (
+encounter AS (
 SELECT
   EncounterID
   ,LocationCVDisplayDSC
@@ -40,10 +40,10 @@ SELECT
 	,ReasonForVisitDSC
 FROM
   [Cerner].[Encounter].[EncounterBASE]
-)
+),
 
 -- diagnosis information
-WITH d1 AS (
+d1 AS (
 SELECT
   PersonID
   ,DiagnosisID
@@ -52,25 +52,24 @@ SELECT
   ,DiagnosisPrioritySEQ
 FROM
   Cerner.Clinical.DiagnosisBASE
-)
+),
 
 -- more dx information
-WITH d2 AS (
+d2 AS (
 SELECT
   PatientID
   ,DiagnosisID
   ,EncounterID
-  ,DiagnosisID
   ,DiagnosisCD
   ,DiagnosisTypeDSC
   ,DiagnosisDSC
   ,DiagnosisNormDSC
 FROM
   Shared.Clinical.DiagnosisBASE
-)
+),
 
 -- respiratory tables comorbidities
-WITH respiratoryFailure AS (
+respiratoryFailure AS (
 SELECT
   PatientID
   ,CASE WHEN PatientID IS NOT NULL THEN 1 ELSE 0 END AS RespiratoryFailure
@@ -88,24 +87,24 @@ SELECT
   ,ReadmittedFLG_THTK
 FROM
 SAM.Readmissions.SummaryIndex
-)
+),
 
 -- have they ever had an encounter with a heart failure diagnosis
-WITH heartFailure AS (
+heartFailure AS (
 SELECT
   PatientID
   ,EncounterID
   ,CASE WHEN DiagnosisCD IS NOT NULL THEN 1 ELSE 0 END AS HeartFailure
 FROM
   SAM.Cardiovascular.HeartFailureEventDiagnosisBASE
-)
+),
 
 
 -- ever diagnosed with diabetes?
-WITH diabetes AS (
+diabetes AS (
 SELECT
   PatientID
-  ,REPLACE(PatientEncounterID, 'EN', '')
+  ,REPLACE(PatientEncounterID, 'EN', '') AS EncounterID
   ,EventSubTypeNM AS Diabetes
 FROM
 SAM.DiabetesBTC.EventDiabetes
@@ -113,7 +112,51 @@ SAM.DiabetesBTC.EventDiabetes
 
 -- Now tie them all together
 
-
+SELECT
+  day.BeginDTS AS DTS
+  ,day.PersonID AS PersonID
+  ,day.EncounterID AS EncounterID
+  ,day.ScheduleAppointmentID AS AppointmentID
+  ,day.ActiveIndicatorCD
+  ,person.Ethnicity AS Ethnicity
+  ,person.Language AS Language
+  ,person.Race AS Race
+  ,person.Marital_Status AS Marital_Status
+  ,person.Sex AS Sex
+  ,person.Religion AS Religion
+  ,encounter.LocationCVDisplayDSC AS Location
+	,encounter.FacilityLocationCVDSC AS Facility
+	,encounter.AdmitTypeCVDisplayDSC AS AdmitType
+	,encounter.EncounterTypeCVDSC AS EncounterType
+	,encounter.ReasonForVisitDSC AS ReasonForVisit
+	,d1.DiagnosisID AS DiagnosisID
+  ,d1.DiagnosisFreeTXT AS DiagnosisFreeTXT
+  ,d1.DiagnosisPrioritySEQ AS DiagnosisPrioritySEQ
+  ,d2.DiagnosisTypeDSC
+  ,d2.DiagnosisDSC
+  ,d2.DiagnosisNormDSC
+  ,respiratoryFailure.RespiratoryFailure AS RespiratoryFailure
+  ,respiratoryFailure.CharlsonDeyoRiskScoreNBR AS CharlsonDeyoScore
+  ,respiratoryFailure.ReadmittedFLG_HW AS FLG_HW
+  ,respiratoryFailure.ReadmittedFLG_ED AS FLG_ED
+  ,respiratoryFailure.ReadmittedFLG_AV AS FLG_AV
+  ,respiratoryFailure.ReadmittedFLG_AMI AS FLG_AMI
+  ,respiratoryFailure.ReadmittedFLG_CABG AS FLG_CABG
+  ,respiratoryFailure.ReadmittedFLG_COPD AS FLG_COPD
+  ,respiratoryFailure.ReadmittedFLG_HF AS FLG_HF
+  ,respiratoryFailure.ReadmittedFLG_InpPsych AS FLG_InpPsych
+  ,respiratoryFailure.ReadmittedFLG_PN AS FLG_PN
+  ,respiratoryFailure.ReadmittedFLG_Stroke AS FLG_Stroke
+  ,respiratoryFailure.ReadmittedFLG_THTK AS FLG_THTK
+FROM
+  day
+LEFT JOIN person ON day.PersonID = person.PersonID
+LEFT JOIN encounter ON day.EncounterID = encounter.EncounterID
+LEFT JOIN d1 ON day.EncounterID = d1.EncounterID
+  AND day.PersonID = d1.PersonID
+LEFT JOIN d2 ON day.EncounterID = d2.EncounterID
+  AND day.PersonID = d2.PatientID
+LEFT JOIN respiratoryFailure ON day.PersonID = respiratoryFailure.PatientID
 
 
 
