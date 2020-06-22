@@ -14,11 +14,11 @@ WHERE
 	AND RoleMeaningDSC = 'PATIENT'
 	AND ActiveIndicatorCD = 1
 ),
-	
+
 -- demographic information
 person AS (
 SELECT
-  PersonID
+  DISTINCT PersonID
   ,EthnicGroupCVDisplayDSC AS Ethnicity
 	,LanguageCVDisplayDSC AS Language
 	,MaritalTypeCVDisplayDSC AS Marital_Status
@@ -32,7 +32,7 @@ FROM
 -- encounter information
 encounter AS (
 SELECT
-  EncounterID
+  DISTINCT EncounterID
   ,LocationCVDisplayDSC
 	,FacilityLocationCVDSC
 	,AdmitTypeCVDisplayDSC
@@ -46,8 +46,8 @@ FROM
 d1 AS (
 SELECT
   PersonID
-  ,DiagnosisID
   ,EncounterID
+	,DiagnosisID
   ,DiagnosisFreeTXT
   ,DiagnosisPrioritySEQ
 FROM
@@ -59,7 +59,7 @@ d2 AS (
 SELECT
   PatientID
   ,DiagnosisID
-  ,EncounterID
+  , DISTINCT EncounterID
   ,DiagnosisCD
   ,DiagnosisTypeDSC
   ,DiagnosisDSC
@@ -71,7 +71,7 @@ FROM
 -- respiratory tables comorbidities
 respiratoryFailure AS (
 SELECT
-  PatientID
+  DISTINCT PatientID
   ,CASE WHEN PatientID IS NOT NULL THEN 1 ELSE 0 END AS RespiratoryFailure
   ,CharlsonDeyoRiskScoreNBR
   ,ReadmittedFLG_HW
@@ -92,7 +92,7 @@ SAM.Readmissions.SummaryIndex
 -- have they ever had an encounter with a heart failure diagnosis
 heartFailure AS (
 SELECT
-  PatientID
+  DISTINCT PatientID
   ,EncounterID
   ,CASE WHEN DiagnosisCD IS NOT NULL THEN 1 ELSE 0 END AS HeartFailure
 FROM
@@ -103,7 +103,7 @@ FROM
 -- ever diagnosed with diabetes?
 diabetes AS (
 SELECT
-  PatientID
+  DISTINCT PatientID
   ,REPLACE(PatientEncounterID, 'EN', '') AS EncounterID
   ,EventSubTypeNM AS Diabetes
 FROM
@@ -168,7 +168,7 @@ LEFT JOIN respiratoryFailure ON day.PersonID = respiratoryFailure.PatientID
 
 -- original query is below, to be deleted once all above is working
 
-SELECT DISTINCT				
+SELECT DISTINCT
   --date info
 	SA.BeginDTS
 	,SA2.EncounterID AS EncounterID
@@ -176,12 +176,12 @@ SELECT DISTINCT
 	,DATEPART(DAY, SA.BeginDTS) AS AdmitDayNBR
 	,DATEPART(HOUR, SA.BeginDTS) AS AdmitHourNBR
 	,DATENAME(DW, SA.BeginDTS) AS AdmitDayOfWeek
-	,DATEDIFF(YEAR, PER.BirthDTS, SA.BeginDTS) AS AdmitAgeNBR	
+	,DATEDIFF(YEAR, PER.BirthDTS, SA.BeginDTS) AS AdmitAgeNBR
 	,SA.ResourceCVDSC
-	,SA.ScheduleAppointmentID			
-	,SA.ActiveIndicatorCD			
-	,RES.ResourceTypeFLG			
-	,RESDEPT.Dept			
+	,SA.ScheduleAppointmentID
+	,SA.ActiveIndicatorCD
+	,RES.ResourceTypeFLG
+	,RESDEPT.Dept
 	,EN.LocationCVDisplayDSC
 	,EN.FacilityLocationCVDSC
 	,EN.AdmitTypeCVDisplayDSC
@@ -204,20 +204,20 @@ SELECT DISTINCT
 	,CASE WHEN SRF.FirstCOPDDiagnosisDT IS NOT NULL THEN 1 ELSE 0 END AS COPD
 	,CASE WHEN CVS.DiagnosisDSC IS NOT NULL THEN 1 ELSE 0 END AS HeartFailure
 	,CASE WHEN DBS.EventNM IS NOT NULL THEN 1 ELSE 0 END AS Diabetes
-	
-FROM 				
-	[Cerner].[Schedule].[Appointment] SA			
-	LEFT JOIN [Cerner].[Person].[Personnel] (nolock)			
-		ON SA.PersonID = Personnel.PersonID		
-	LEFT JOIN [Cerner].[Schedule].[Resource] RES			
-		ON SA.ResourceCVCD = RES.ResourceCVCD		
+
+FROM
+	[Cerner].[Schedule].[Appointment] SA
+	LEFT JOIN [Cerner].[Person].[Personnel] (nolock)
+		ON SA.PersonID = Personnel.PersonID
+	LEFT JOIN [Cerner].[Schedule].[Resource] RES
+		ON SA.ResourceCVCD = RES.ResourceCVCD
 	LEFT JOIN [SAM].[PatientAccess].[ResourceToDeptCrosswalk] RESDEPT
-		ON SA.ResourceCVCD = RESDEPT.ResourceCVCD	
-	LEFT JOIN [Cerner].[Person].[Person] PATIENT	
+		ON SA.ResourceCVCD = RESDEPT.ResourceCVCD
+	LEFT JOIN [Cerner].[Person].[Person] PATIENT
 		ON SA.PersonID = PATIENT.PersonID
-	LEFT JOIN [Cerner].[Schedule].[Appointment] SA2		
-	  ON SA.ScheduleEventID = SA2.ScheduleID	
-		AND SA2.RoleMeaningDSC = 'PATIENT'	
+	LEFT JOIN [Cerner].[Schedule].[Appointment] SA2
+	  ON SA.ScheduleEventID = SA2.ScheduleID
+		AND SA2.RoleMeaningDSC = 'PATIENT'
 	LEFT JOIN [Cerner].[Person].[PersonBASE] PER
 		ON SA2.PersonID = PER.PersonID
 	LEFT JOIN [Cerner].[Encounter].[EncounterToPlanRelationshipBASE] EPR
@@ -234,23 +234,23 @@ FROM
 		ON SA2.EncounterID = CVS.EncounterID
 	LEFT JOIN [SAM].[DiabetesBTC].[EventDiabetes] DBS
 		ON SA2.EncounterID = REPLACE(DBS.PatientEncounterID, 'EN', '')
-	
-				
-WHERE 				
-	SA.BeginDTS BETWEEN '2016-01-01' AND '2019-12-31'			
-	-- Provider Side			
-	AND SA.ActiveIndicatorCD = 1			
-	AND SA.StateOfAppointmentMeaningDSC NOT IN ('PENDING')			
-	AND SA.EndEffectiveDTS > GETDATE()			
-	AND SA.RoleMeaningDSC != 'PATIENT'			
-				
-	-- Patient Side			
-	AND SA2.ActiveIndicatorCD = 1			
-	AND SA2.EndEffectiveDTS > GETDATE()			
-	AND SA2.RoleMeaningDSC = 'PATIENT'			
-	AND SA2.ScheduleStateCVDisplayDSC NOT IN ('RESCHEDULED','CANCELED','DELETED')	
-	AND PER.ActiveIndicatorCD = 1	
+
+
+WHERE
+	SA.BeginDTS BETWEEN '2016-01-01' AND '2019-12-31'
+	-- Provider Side
+	AND SA.ActiveIndicatorCD = 1
+	AND SA.StateOfAppointmentMeaningDSC NOT IN ('PENDING')
+	AND SA.EndEffectiveDTS > GETDATE()
+	AND SA.RoleMeaningDSC != 'PATIENT'
+
+	-- Patient Side
+	AND SA2.ActiveIndicatorCD = 1
+	AND SA2.EndEffectiveDTS > GETDATE()
+	AND SA2.RoleMeaningDSC = 'PATIENT'
+	AND SA2.ScheduleStateCVDisplayDSC NOT IN ('RESCHEDULED','CANCELED','DELETED')
+	AND PER.ActiveIndicatorCD = 1
 	AND EPR.ActiveIndicatorCD = 1
-	
+
 ORDER BY
   SA2.PersonID, SA2.EncounterID, SA.BeginDTS, ICD9CD
