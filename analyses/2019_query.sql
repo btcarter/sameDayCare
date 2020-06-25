@@ -1,7 +1,7 @@
 -- CTEs to assemble smaller bites for processing
 -- appointment information
 WITH day AS (
-SELECT
+SELECT DISTINCT
 	BeginDTS
 	,PersonID
 	,EncounterID
@@ -38,28 +38,35 @@ SELECT
 	,AdmitTypeCVDisplayDSC
 	,EncounterTypeCVDSC
 	,ReasonForVisitDSC
+	,BeginEffectiveDTS
 FROM
   [Cerner].[Encounter].[EncounterBASE]
+WHERE
+	BeginEffectiveDTS BETWEEN '2017-01-01' AND '2019-12-31'
 ),
 
 -- diagnosis information
 d1 AS (
-SELECT
+SELECT DISTINCT
   PersonID
   ,EncounterID
 	,DiagnosisID
   ,DiagnosisFreeTXT
   ,DiagnosisPrioritySEQ
+  ,BeginEffectiveDTS
 FROM
   Cerner.Clinical.DiagnosisBASE
+WHERE
+	BeginEffectiveDTS BETWEEN '2017-01-01' AND '2019-12-31'
 ),
 
 -- more dx information
 d2 AS (
 SELECT
+  DISTINCT
   PatientID
   ,DiagnosisID
-  , DISTINCT EncounterID
+  ,EncounterID
   ,DiagnosisCD
   ,DiagnosisTypeDSC
   ,DiagnosisDSC
@@ -108,6 +115,15 @@ SELECT
   ,EventSubTypeNM AS Diabetes
 FROM
 SAM.DiabetesBTC.EventDiabetes
+),
+
+zipcode AS (
+SELECT
+  DISTINCT NewPersonID AS PersonID
+  ,NewEncounterID AS EncounterID
+  ,NewPersonHomeAddressZipcodeNBR AS Zip
+FROM
+  Cerner.Person.ManagementTransaction
 )
 
 -- Now tie them all together
@@ -124,6 +140,7 @@ SELECT
   ,person.Marital_Status AS Marital_Status
   ,person.Sex AS Sex
   ,person.Religion AS Religion
+  ,zipcode.zip AS Person_ZipCode
   ,encounter.LocationCVDisplayDSC AS Location
 	,encounter.FacilityLocationCVDSC AS Facility
 	,encounter.AdmitTypeCVDisplayDSC AS AdmitType
@@ -151,6 +168,7 @@ SELECT
 FROM
   day
 LEFT JOIN person ON day.PersonID = person.PersonID
+LEFT JOIN zipcode ON day.PersonID = zipcode.PersonID
 LEFT JOIN encounter ON day.EncounterID = encounter.EncounterID
 LEFT JOIN d1 ON day.EncounterID = d1.EncounterID
   AND day.PersonID = d1.PersonID
@@ -162,7 +180,7 @@ LEFT JOIN respiratoryFailure ON day.PersonID = respiratoryFailure.PatientID
 
 
 
-
+ 
 
 
 
