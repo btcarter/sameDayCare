@@ -71,6 +71,7 @@ d1 AS (
 SELECT DISTINCT
   PersonID
   ,EncounterID
+  ,DiagnosisID
   ,DiagnosisFreeTXT
   ,DiagnosisPrioritySEQ
   ,BeginEffectiveDTS
@@ -93,6 +94,7 @@ SELECT
   DISTINCT
   PatientID
   ,EncounterID
+  ,DiagnosisID
   ,DiagnosisCD
   ,DiagnosisTypeDSC
   ,DiagnosisDSC
@@ -192,6 +194,7 @@ LEFT JOIN d1 ON day.EncounterID = d1.EncounterID
   AND day.PersonID = d1.PersonID
 LEFT JOIN d2 ON day.EncounterID = d2.EncounterID
   AND day.PersonID = d2.PatientID
+  AND d1.DiagnosisID = d2.DiagnosisID
 LEFT JOIN respiratoryFailure ON day.PersonID = respiratoryFailure.PatientID
 WHERE day.BeginDTS BETWEEN '2017-01-01' AND '2019-12-31'
 ORDER BY day.BeginDTS, day.PersonID, day.EncounterID
