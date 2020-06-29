@@ -27,6 +27,13 @@ SELECT
 	,ReligionCVDisplayDSC AS Religion
 FROM
   [Cerner].[Person].[PersonBASE]
+WHERE PersonID IN (SELECT DISTINCT
+						PersonID
+						FROM Cerner.Schedule.Appointment
+						WHERE BeginDTS BETWEEN '2017-01-01'
+						AND '2019-12-31'
+						AND RoleMeaningDSC = 'PATIENT'
+						AND ActiveIndicatorCD = 1 )
 ),
 
 -- encounter information
@@ -43,6 +50,20 @@ FROM
   [Cerner].[Encounter].[EncounterBASE]
 WHERE
 	BeginEffectiveDTS BETWEEN '2017-01-01' AND '2019-12-31'
+	AND EncounterID IN (SELECT DISTINCT
+						EncounterID
+						FROM Cerner.Schedule.Appointment
+						WHERE BeginDTS BETWEEN '2017-01-01'
+						AND '2019-12-31'
+						AND RoleMeaningDSC = 'PATIENT'
+						AND ActiveIndicatorCD = 1 )
+	AND PersonID IN (SELECT
+						PersonID
+						FROM Cerner.Schedule.Appointment
+						WHERE BeginDTS BETWEEN '2017-01-01'
+						AND '2019-12-31'
+						AND RoleMeaningDSC = 'PATIENT'
+						AND ActiveIndicatorCD = 1 )
 ),
 
 -- diagnosis information
@@ -50,7 +71,6 @@ d1 AS (
 SELECT DISTINCT
   PersonID
   ,EncounterID
-	,DiagnosisID
   ,DiagnosisFreeTXT
   ,DiagnosisPrioritySEQ
   ,BeginEffectiveDTS
@@ -58,6 +78,13 @@ FROM
   Cerner.Clinical.DiagnosisBASE
 WHERE
 	BeginEffectiveDTS BETWEEN '2017-01-01' AND '2019-12-31'
+	AND PersonID IN (SELECT DISTINCT
+						PersonID
+						FROM Cerner.Schedule.Appointment
+						WHERE BeginDTS BETWEEN '2017-01-01'
+						AND '2019-12-31'
+						AND RoleMeaningDSC = 'PATIENT'
+						AND ActiveIndicatorCD = 1 )
 ),
 
 -- more dx information
@@ -65,7 +92,6 @@ d2 AS (
 SELECT
   DISTINCT
   PatientID
-  ,DiagnosisID
   ,EncounterID
   ,DiagnosisCD
   ,DiagnosisTypeDSC
@@ -73,6 +99,13 @@ SELECT
   ,DiagnosisNormDSC
 FROM
   Shared.Clinical.DiagnosisBASE
+WHERE EncounterID IN (SELECT DISTINCT
+						EncounterID
+						FROM Cerner.Schedule.Appointment
+						WHERE BeginDTS BETWEEN '2017-01-01'
+						AND '2019-12-31'
+						AND RoleMeaningDSC = 'PATIENT'
+						AND ActiveIndicatorCD = 1 )
 ),
 
 -- respiratory tables comorbidities
@@ -81,17 +114,6 @@ SELECT
   DISTINCT PatientID
   ,CASE WHEN PatientID IS NOT NULL THEN 1 ELSE 0 END AS RespiratoryFailure
   ,CharlsonDeyoRiskScoreNBR
-  ,ReadmittedFLG_HW
-  ,ReadmittedFLG_ED
-  ,ReadmittedFLG_AV
-  ,ReadmittedFLG_AMI
-  ,ReadmittedFLG_CABG
-  ,ReadmittedFLG_COPD
-  ,ReadmittedFLG_HF
-  ,ReadmittedFLG_InpPsych
-  ,ReadmittedFLG_PN
-  ,ReadmittedFLG_Stroke
-  ,ReadmittedFLG_THTK
 FROM
 SAM.Readmissions.SummaryIndex
 ),
@@ -124,11 +146,18 @@ SELECT
   ,NewPersonHomeAddressZipcodeNBR AS Zip
 FROM
   Cerner.Person.ManagementTransaction
+ WHERE NewEncounterID IN (SELECT DISTINCT
+						EncounterID AS NewEncounterID
+						FROM Cerner.Schedule.Appointment
+						WHERE BeginDTS BETWEEN '2017-01-01'
+						AND '2019-12-31'
+						AND RoleMeaningDSC = 'PATIENT'
+						AND ActiveIndicatorCD = 1 )
 )
 
 -- Now tie them all together
 
-SELECT
+SELECT DISTINCT
   day.BeginDTS AS DTS
   ,day.PersonID AS PersonID
   ,day.EncounterID AS EncounterID
@@ -142,29 +171,18 @@ SELECT
   ,person.Religion AS Religion
   ,zipcode.zip AS Person_ZipCode
   ,encounter.LocationCVDisplayDSC AS Location
-	,encounter.FacilityLocationCVDSC AS Facility
-	,encounter.AdmitTypeCVDisplayDSC AS AdmitType
-	,encounter.EncounterTypeCVDSC AS EncounterType
-	,encounter.ReasonForVisitDSC AS ReasonForVisit
-	,d1.DiagnosisID AS DiagnosisID
+  ,encounter.FacilityLocationCVDSC AS Facility
+  ,encounter.AdmitTypeCVDisplayDSC AS AdmitType
+  ,encounter.EncounterTypeCVDSC AS EncounterType
+  ,encounter.ReasonForVisitDSC AS ReasonForVisit
   ,d1.DiagnosisFreeTXT AS DiagnosisFreeTXT
   ,d1.DiagnosisPrioritySEQ AS DiagnosisPrioritySEQ
+  ,d2.DiagnosisCD AS ICD
   ,d2.DiagnosisTypeDSC
   ,d2.DiagnosisDSC
   ,d2.DiagnosisNormDSC
   ,respiratoryFailure.RespiratoryFailure AS RespiratoryFailure
   ,respiratoryFailure.CharlsonDeyoRiskScoreNBR AS CharlsonDeyoScore
-  ,respiratoryFailure.ReadmittedFLG_HW AS FLG_HW
-  ,respiratoryFailure.ReadmittedFLG_ED AS FLG_ED
-  ,respiratoryFailure.ReadmittedFLG_AV AS FLG_AV
-  ,respiratoryFailure.ReadmittedFLG_AMI AS FLG_AMI
-  ,respiratoryFailure.ReadmittedFLG_CABG AS FLG_CABG
-  ,respiratoryFailure.ReadmittedFLG_COPD AS FLG_COPD
-  ,respiratoryFailure.ReadmittedFLG_HF AS FLG_HF
-  ,respiratoryFailure.ReadmittedFLG_InpPsych AS FLG_InpPsych
-  ,respiratoryFailure.ReadmittedFLG_PN AS FLG_PN
-  ,respiratoryFailure.ReadmittedFLG_Stroke AS FLG_Stroke
-  ,respiratoryFailure.ReadmittedFLG_THTK AS FLG_THTK
 FROM
   day
 LEFT JOIN person ON day.PersonID = person.PersonID
@@ -175,12 +193,14 @@ LEFT JOIN d1 ON day.EncounterID = d1.EncounterID
 LEFT JOIN d2 ON day.EncounterID = d2.EncounterID
   AND day.PersonID = d2.PatientID
 LEFT JOIN respiratoryFailure ON day.PersonID = respiratoryFailure.PatientID
+WHERE day.BeginDTS BETWEEN '2017-01-01' AND '2019-12-31'
+ORDER BY day.BeginDTS, day.PersonID, day.EncounterID
 
 
 
 
 
- 
+
 
 
 
