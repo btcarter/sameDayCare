@@ -96,28 +96,24 @@ df.processed <- df %>%
       Ethnicity,
       "Not Obtained"
     ),
-    ZipCode = gsub(
+    ZipCode = gsub(   # only grab the zipcode, not the extension
       "(\\d{5}).*",
       "\\1",
       ZipCode
     ),
     ICD_block = gsub(
-      "(\\w\\d{2}).?(.*)",
+      "(.{3}).?(.*)",
       "\\1",
       ICD
     ),
     ICD_code = gsub(
-      "(\\w\\d{2}).?(.*)",
+      "([[:alnum:]]*)\\.?([[:alnum:]]*)",
       "\\1\\2",
       ICD
     )
   ) %>% 
   filter(
-    !is.na(ICD_code),
-    !grepl(
-      "\\.",
-      ICD_code
-    )
+    !is.na(ICD_code), # get rid of entries with no ICD-10
   )
 
 ```
@@ -126,9 +122,24 @@ df.processed <- df %>%
 
 Unique PersonIDs: `r length(unique(df$PersonID))`
 Unique EncounterIDs: `r length(unique(df$EncounterID))`
-Primary Dx: `r nrow()
+Primary Dx: `r nrow(df[df$DiagnosisType == "Primary Diagnosis", ])`
+Secondary Dx: `r nrow(df[df$DiagnosisType == "Secondary Diagnosis", ])`
+Admit Dx: `r nrow(df[df$DiagnosisType == "Admit Diagnosis", ])`
+Clinical Dx: `r nrow(df[df$DiagnosisType == "Clinical Diagnosis", ])`
 Unique Zipcodes: `r length(unique(df$ZipCode))`
 Unique ICD-10s: `r length(unique(df$ICD))`
 Average Charlson-Deyo: `r mean(df$CharlsonDeyoScore, na.rm = TRUE)`
+
+# Post preprocessing
+
+Unique PersonIDs: `r length(unique(df.processed$PersonID))`
+Unique EncounterIDs: `r length(unique(df.processed$EncounterID))`
+Primary Dx: `r nrow(df.processed[df.processed$DiagnosisType == "Primary Diagnosis", ])`
+Secondary Dx: `r nrow(df.processed[df.processed$DiagnosisType == "Secondary Diagnosis", ])`
+Admit Dx: `r nrow(df.processed[df.processed$DiagnosisType == "Admit Diagnosis", ])`
+Clinical Dx: `r nrow(df.processed[df.processed$DiagnosisType == "Clinical Diagnosis", ])`
+Unique Zipcodes: `r length(unique(df.processed$ZipCode))`
+Unique ICD-10s: `r length(unique(df.processed$ICD))`
+Average Charlson-Deyo: `r mean(df.processed$CharlsonDeyoScore, na.rm = TRUE)`
 
 
