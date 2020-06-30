@@ -3,7 +3,6 @@ title: "Same Day Care 2.0"
 output:
   html_document:
     df_print: paged
-  html_notebook:
     code_folding: hide
 ---
 
@@ -12,10 +11,12 @@ output:
 library(dplyr)
 library(stringr)
 library(ggplot2)
+library(icd.data)
+library(icd)
 
 # paths ####
 data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", "CSI & David Hedges - Same Day Care Project", "data")
-df.path <- file.path(data.dir.path, "All.2016-2019.2020-06-11.csv")
+df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-06-29.csv")
 out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", "CSI & David Hedges - Same Day Care Project", "results")
 ```
 
@@ -23,37 +24,31 @@ out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", "CSI & David 
 # load data ####
 
 cols <- c(
-  "BeginDTS",
+  "DTS",
+  "PersonID",
   "EncounterID",
-  "AdmitMonthNBR",
-  "AdmitDayNBR",
-  "AdmitHourNBR",
-  "AdmitDayOfWeek",
-  "AdmitAgeNBR",
-  "ResourceCVDSC",
-  "ScheduleAppointmentID",
+  "AppointmentID",
   "ActiveIndicatorCD",
-  "ResourceTypeFLG",
-  "Dept",
-  "LocationCVDisplayDSC",
-	"FacilityLocationCVDSC",
+  "Ethnicity",
+  "Language",
+  "Race",
+  "Marital_Status",
+  "Sex",
+  "Religion",
+  "ZipCode",
+  "Location",
+  "Facility",
   "AdmitType",
   "EncounterType",
-  "PersonID",
-  "EthnicityDSC",
-  "LanguageDSC",
-  "MaritalStatusDSC",
-  "RaceDSC",
-  "GenderDSC",
-  "ReligionDSC",
-  "ReasonForVisitDSC",
-  "ICD9CD",
-  "DiagnosisPrioritySEQ",
-  "DiagnosisDSC",
+  "ReasonForVisit",
   "DiagnosisFreeTXT",
-  "COPD",
-  "HeartFailure",
-  "Diabetes"
+  "DiagnosisPrioritySEQ",
+  "ICD",
+  "DiagnosisType",
+  "DiagnosisDSC",
+  "DiagnosisNormDSC",
+  "RespiratoryFailure",
+  "CharlsonDeyoScore"
 )
 
 df <- read.csv2(
@@ -61,422 +56,79 @@ df <- read.csv2(
   header = FALSE,
   sep = ",",
   col.names = cols,
-  stringsAsFactors = FALSE
+  stringsAsFactors = FALSE,
+  na.strings = "NULL"
   )
 
 ```
 
-
-# Preprocessing
 
 ```{r preproc}
 
 # correct bad entries ####
-df[1,1] <- "2018-08-20 14:40:00.0000000"
+df[1,1] <- "2017-01-01 00:00:00.0000000"
 
-df.processed <- df %>%
+df.processed <- df %>% 
   mutate(
-    BeginDTS = as.POSIXct(BeginDTS, format = "%Y-%m-%d %H:%M:%S"),
-    PersonID = as.character(PersonID)
+    Race = na_if(
+      Race,
+      "0"
+    ),
+    Race = na_if(
+      Race,
+      " "
+    ),
+    Ethnicity = na_if(
+      Ethnicity,
+      "0"
+    ),
+    Ethnicity = na_if(
+      Ethnicity,
+      " "
+    )
   ) %>% 
   mutate(
-    ReligionDSC = na_if(ReligionDSC, " "),
-    RaceDSC = na_if(RaceDSC, " "),
-    EthnicityDSC = na_if(EthnicityDSC, " "),
-    MaritalStatusDSC = na_if(MaritalStatusDSC, " "),
-    ResourceTypeFLG = na_if(ResourceTypeFLG, "NULL"),
-    Dept = na_if(Dept, "NULL"),
-    DiagnosisPrioritySEQ = as.numeric(
-      as.character(
-        DiagnosisPrioritySEQ
-      )
+    Race = replace_na(
+      Race,
+      "Not Obtained"
+    ),
+    Ethnicity = replace_na(
+      Ethnicity,
+      "Not Obtained"
+    ),
+    ZipCode = gsub(
+      "(\\d{5}).*",
+      "\\1",
+      ZipCode
+    ),
+    ICD_block = gsub(
+      "(\\w\\d{2}).?(.*)",
+      "\\1",
+      ICD
+    ),
+    ICD_code = gsub(
+      "(\\w\\d{2}).?(.*)",
+      "\\1\\2",
+      ICD
     )
-  ) %>%
-  droplevels() %>% 
+  ) %>% 
   filter(
-    BeginDTS > "2016-12-31"
-  )
-
-# make a list of SDC/EC facilities
-# sdc.ec.facilities <- df %>%
-#   filter(
-#     str_detect(LocationCVDisplayDSC,
-#                "SDC|Same Day Care|EC|Express Care")
-#   ) %>%
-#   select(
-#     LocationCVDisplayDSC
-#   ) %>%
-#   distinct()
-
-sdc.ec.facilities <- c(
-  "SDC West",
-  "Billings Clinic Downtown EC",
-  "SDC Heights",
-  "Grand Express Care",
-  "SDC Downtown",
-  "Central Express Care",
-  "Heights Express Care",
-  "SDC Downtown Nurse",
-  "Pediatric Cardiology US/EC",
-  "SDC West Nurse",
-  "Miles City Branch EC",
-  "WE SDC",
-  "GRHC EC",
-  "HTS SDC",
-  "HSMH SDC"
-)
-
-# sdc.ec.facilities <- c("Heights Express Care",
-#                        "SDC Downtown",
-#                        "SDC West",
-#                        "SDC Heights",
-#                        "Grand Express Care",
-#                        "Billings Clinic Downtown EC",
-#                        "Central Express Care",
-#                        "SDC Downtown Nurse",
-#                        "SDC West Nurse")
-
-# make functions ####
-get.sdc.pts <- function(x){
-    # select IDs who used SDC ####
-  ids <- x %>% 
-    filter(
-      LocationCVDisplayDSC %in% sdc.ec.facilities
-    ) %>%
-    distinct(
-      PersonID
+    !is.na(ICD_code),
+    !grepl(
+      "\\.",
+      ICD_code
     )
-  
-  # filter for IDs that appeared in SDC
-  df <- x %>%
-    filter(
-      PersonID %in% ids$PersonID
-    )
-  
-  return(df)
-}
-
-# steps ####
-  # sort by date/participant
-  # find date of first SDC/EC for each participant
-  # make variable denoting if the following encounter occured within 14 days of the SDC/EC encounter
-
-# SDC processing ####
-
-df.sdc <- df.processed %>% # find SDC pts
-  get.sdc.pts() %>% 
-  arrange(
-    PersonID,
-    BeginDTS,
-    AdmitHourNBR
-  )
-
-# Demographics dataframe ####
-
-df.sdc.demographics <- df.sdc %>%
-  distinct_at(
-    "PersonID",
-    .keep_all = TRUE
-  ) %>% 
-  select(
-    PersonID,
-    AdmitAgeNBR,
-    EthnicityDSC,
-    RaceDSC,
-    LanguageDSC,
-    MaritalStatusDSC,
-    GenderDSC,
-    ReligionDSC,
-    COPD,
-    HeartFailure,
-    Diabetes
-  ) %>% 
-  mutate(
-    LanguageDSC = na_if(LanguageDSC, " "),
-    AdmitAgeNBR = as.numeric(as.character(AdmitAgeNBR))
-  )
-
-# combine ICD9s into a single observation per encounter ####
-
-df.sdc.icd9.priority <- df.sdc %>% 
-  group_by(
-    PersonID,
-    BeginDTS,
-    LocationCVDisplayDSC
-  ) %>% 
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  slice(1) %>%
-  select(
-    PersonID,
-    BeginDTS,
-    LocationCVDisplayDSC,
-    ICD9.priority = ICD9CD
-  ) %>% 
-  ungroup()
-
-df.sdc.icd9.list <- df.sdc %>%
-  group_by(
-    PersonID,
-    BeginDTS,
-    LocationCVDisplayDSC
-  ) %>%
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  count(
-    ICD9CD
-  ) %>% 
-  summarise(
-    ICD9CD = paste(ICD9CD, collapse = "; ")
-  )
-  
-df.sdc.diagnosisdsc.list <- df.sdc %>%
-  group_by(
-    PersonID,
-    BeginDTS,
-    LocationCVDisplayDSC
-  ) %>%
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>%
-  count(
-    DiagnosisDSC
-  ) %>% 
-  summarise(
-    DiagnosisDSC = paste(DiagnosisDSC, collapse = "; ")
-  )
-
-df.sdc.diagnosisfreetxt.list <- df.sdc %>%
-  group_by(
-    PersonID,
-    BeginDTS,
-    LocationCVDisplayDSC
-  ) %>%
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>%
-  count(
-    DiagnosisFreeTXT
-  ) %>% 
-  summarise(
-    DiagnosisFreeTXT = paste(DiagnosisFreeTXT, collapse = "; ")
-  )
-  
-df.sdc.admitType <- df.sdc %>% 
-  group_by(
-    PersonID,
-    BeginDTS,
-    LocationCVDisplayDSC
-  ) %>%
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  count(
-    AdmitType
-  ) %>% 
-  summarise(
-    AdmitType = paste(AdmitType, collapse = "; ")
-  )
-  
-
-df.sdc.reasonforvisit.list <- df.sdc %>% 
-  group_by(
-    PersonID,
-    BeginDTS,
-    LocationCVDisplayDSC
-  ) %>%
-  arrange(
-    DiagnosisPrioritySEQ
-  )%>% 
-  count(
-    ReasonForVisitDSC
-  ) %>% 
-  summarise(
-    ReasonForVisitDSC = paste(ReasonForVisitDSC, collapse = "; ")
-  )
-
-df.sdc.flattened <- df.sdc.icd9.list %>%
-  left_join(
-    df.sdc.admitType,
-    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
-  ) %>% 
-  left_join(
-    df.sdc.icd9.priority,
-    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
-  ) %>% 
-  left_join(
-    df.sdc.diagnosisdsc.list,
-    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
-  ) %>% 
-  left_join(
-    df.sdc.diagnosisfreetxt.list,
-    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
-  ) %>% 
-  left_join(
-    df.sdc.reasonforvisit.list,
-    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
-  ) %>%
-  left_join(
-    df.sdc.demographics,
-    by = c("PersonID")
-  ) %>%
-  ungroup() %>% 
-  arrange(
-    PersonID,
-    BeginDTS,
-    LocationCVDisplayDSC
-  ) %>% 
-  mutate(
-    BeginDTS = as.POSIXct(BeginDTS)
-  ) %>% 
-  arrange(
-    PersonID,
-    BeginDTS
-  ) %>% 
-  mutate(
-    return_in_14 = ifelse(
-      lead(BeginDTS) - BeginDTS <= 1209600 &
-        lead(BeginDTS) - BeginDTS > 0 &
-        lead(PersonID) == PersonID &
-        LocationCVDisplayDSC %in% sdc.ec.facilities &
-        !(lead(AdmitType) %in% c("Elective", "D", "Semi-Urgent CMCM")),
-      TRUE,
-      FALSE
-    ),
-    return_in_14_sameICD = ifelse(
-      lead(BeginDTS) - BeginDTS <= 1209600 &
-        lead(BeginDTS) - BeginDTS > 0 &
-        lead(PersonID) == PersonID &
-        LocationCVDisplayDSC %in% sdc.ec.facilities &
-        ICD9.priority == lead(ICD9.priority) &
-        !(lead(AdmitType) %in% c("Elective", "D", "Semi-Urgent CMCM")),
-      TRUE,
-      FALSE
-    ),
-    return_in_14_diffICD = ifelse(
-      lead(BeginDTS) - BeginDTS <= 1209600 &
-        lead(BeginDTS) - BeginDTS > 0 &
-        lead(PersonID) == PersonID &
-        LocationCVDisplayDSC %in% sdc.ec.facilities &
-        ICD9.priority != lead(ICD9.priority) &
-        !(lead(AdmitType) %in% c("Elective", "D", "Semi-Urgent CMCM")),
-      TRUE,
-      FALSE
-    ),
-    Facility = ifelse(LocationCVDisplayDSC %in% sdc.ec.facilities, "SDC or EC Facility", "Other Facility"),
-    HeartFailure = as.factor(as.logical(HeartFailure)),
-    COPD = as.logical(COPD),
-    Diabetes = as.logical(Diabetes)
-  ) %>% 
-  mutate(
-    ICD_family = gsub("(\\w\\d{2}).\\d+","\\1", ICD9.priority)
-  )
-
-df.sdc.flattened.test <- df.sdc.icd9.list %>%
-  left_join(
-    df.sdc.admitType,
-    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
-  ) %>% 
-  left_join(
-    df.sdc.icd9.priority,
-    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
-  ) %>% 
-  left_join(
-    df.sdc.diagnosisdsc.list,
-    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
-  ) %>% 
-  left_join(
-    df.sdc.diagnosisfreetxt.list,
-    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
-  ) %>% 
-  left_join(
-    df.sdc.reasonforvisit.list,
-    by = c("PersonID", "BeginDTS", "LocationCVDisplayDSC")
-  ) %>% 
-  left_join(
-    df.sdc.demographics,
-    by = c("PersonID")
-  ) %>%
-  ungroup() %>% 
-  arrange(
-    PersonID,
-    BeginDTS,
-    LocationCVDisplayDSC
-  ) %>% 
-  mutate(
-    BeginDTS = as.POSIXct(BeginDTS)
-  ) %>% 
-  arrange(
-    PersonID,
-    BeginDTS
-  ) %>% 
-  mutate(
-    return_in_14 = ifelse(
-      lead(BeginDTS) - BeginDTS <= 1209600 &
-        lead(BeginDTS) - BeginDTS > 0 &
-        lead(PersonID) == PersonID &
-        LocationCVDisplayDSC %in% sdc.ec.facilities,
-      TRUE,
-      FALSE
-    ),
-    return_in_14_sameICD = ifelse(
-      lead(BeginDTS) - BeginDTS <= 1209600 &
-        lead(BeginDTS) - BeginDTS > 0 &
-        lead(PersonID) == PersonID &
-        LocationCVDisplayDSC %in% sdc.ec.facilities &
-        ICD9.priority == lead(ICD9.priority),
-      TRUE,
-      FALSE
-    ),
-    return_in_14_diffICD = ifelse(
-      lead(BeginDTS) - BeginDTS <= 1209600 &
-        lead(BeginDTS) - BeginDTS > 0 &
-        lead(PersonID) == PersonID &
-        LocationCVDisplayDSC %in% sdc.ec.facilities &
-        ICD9.priority != lead(ICD9.priority),
-      TRUE,
-      FALSE
-    ),
-    Facility = ifelse(LocationCVDisplayDSC %in% sdc.ec.facilities, "SDC or EC Facility", "Other Facility"),
-    HeartFailure = as.factor(as.logical(HeartFailure)),
-    COPD = as.logical(COPD),
-    Diabetes = as.logical(Diabetes)
-  ) %>% 
-  mutate(
-    ICD_family = gsub("(\\w\\d{2}).\\d+","\\1", ICD9.priority)
   )
 
 ```
 
-`r nrow(df.sdc)` patient records were selected via SQL query from the electronic health record (EHR) on the basis of a visit to a Same Day Care or Express Care facility between the years 2017-2019. Entries in the EHR without entered data or with "NULL" were then recoded as `NA`. Records created for the same patient, with the same date and time stamp and location were then combined into a single observation. ICD-10 codes were combined into a single array in the order of their priority, and a new variable was created to code for the priority ICD-10 code. This reduced the total number of observations to `r nrow(df.sdc.flattened)` individual true patient encounters.
+# Basic stats for all patient encounters from 2017-2019
 
-A logical indicator variable was then created to show if the patient made an unexpected inpatient visit to a Billings Clinic Facility (i.e. AdmitType was not `Elective`, EncounterType was `Inpatient`) within 14 days of a visit to a SDC/EC facility. A similar variable was also created to indicate if that patient returned within 14 days and had the same priority ICD-10 code. Another variable was created to indicate if the return had a different priority ICD-10 code. The following facilities were coded as same day care facilities:
+Unique PersonIDs: `r length(unique(df$PersonID))`
+Unique EncounterIDs: `r length(unique(df$EncounterID))`
+Primary Dx: `r nrow()
+Unique Zipcodes: `r length(unique(df$ZipCode))`
+Unique ICD-10s: `r length(unique(df$ICD))`
+Average Charlson-Deyo: `r mean(df$CharlsonDeyoScore, na.rm = TRUE)`
 
-```{r}
-knitr::kable(sdc.ec.facilities, col.names = c("Same Day Care and Express Care Facilities"))
-```
 
-Variables were then created to code for ICD-10 family. Encounters not at an SDC?EC facility were then eliminated from the dataset.
-
-```{r}
-df.sdc.flattened <- df.sdc.flattened %>% 
-  filter(
-    Facility == "SDC or EC Facility"
-  )
-
-df.sdc.flattened.test <- df.sdc.flattened.test %>% 
-  filter(
-    Facility == "SDC or EC Facility"
-  )
-
-write.csv(
-  df.sdc.flattened, 
-  file.path(
-    data.dir.path,
-    "sdc.2017-2019.2020-06-10.csv"
-    ),
-  quote = FALSE
-  )
-```
