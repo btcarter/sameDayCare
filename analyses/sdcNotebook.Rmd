@@ -9,10 +9,11 @@ output:
 ```{r setup}
 # packages ####
 library(dplyr)
+library(tidyr)
 library(stringr)
 library(ggplot2)
 library(icd.data)
-library(icd)
+library(icd) # for reading in ICD10 classifying information and calculating risk scores
 
 # paths ####
 data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", "CSI & David Hedges - Same Day Care Project", "data")
@@ -59,6 +60,8 @@ df <- read.csv2(
   stringsAsFactors = FALSE,
   na.strings = "NULL"
   )
+
+ICD <- icd10cm2019
 
 ```
 
@@ -113,8 +116,13 @@ df.processed <- df %>%
     )
   ) %>% 
   filter(
-    !is.na(ICD_code), # get rid of entries with no ICD-10
+    !is.na(ICD_code) # get rid of entries with no ICD-10
+  ) %>% 
+  filter(
+    grepl("^\\d+", ICD_code)
   )
+
+
 
 ```
 
@@ -142,4 +150,18 @@ Unique Zipcodes: `r length(unique(df.processed$ZipCode))`
 Unique ICD-10s: `r length(unique(df.processed$ICD))`
 Average Charlson-Deyo: `r mean(df.processed$CharlsonDeyoScore, na.rm = TRUE)`
 
+Top 10 ICD Codes
+
+
+
+```{r}
+df.processed %>% 
+  filter(
+    Location,
+    Facility
+  ) %>% 
+  summarise(
+    distinct(EncounterID)
+  )
+```
 
