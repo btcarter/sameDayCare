@@ -184,6 +184,16 @@ df.processed.sdc <- df.processed %>%
 
 ```
 
+```{r collapserows}
+
+smash.it <- function(data = data.frame(), group = array(), smash = character()){
+  data %>% 
+    
+}
+```
+
+
+
 # SDC/EC Descriptives
 
 ## Top 50 ICD-10 Codes for Primary Dx
