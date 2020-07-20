@@ -119,7 +119,7 @@ df.processed <- df %>%
     !is.na(ICD_code) # get rid of entries with no ICD-10
   ) %>% 
   filter(
-    grepl("^\\d+", ICD_code)
+    !grepl("^\\d+", ICD_code)
   )
 
 
@@ -150,18 +150,44 @@ Unique Zipcodes: `r length(unique(df.processed$ZipCode))`
 Unique ICD-10s: `r length(unique(df.processed$ICD))`
 Average Charlson-Deyo: `r mean(df.processed$CharlsonDeyoScore, na.rm = TRUE)`
 
-Top 10 ICD Codes
-
-
 
 ```{r}
-df.processed %>% 
+
+sdcec.list <- c(
+  "SDC Downtown",
+  "SDC Downtown Nurse",
+  "SDC Heights",
+  "SDC West",
+  "SDC West Nurse",
+  "Billings Clinic Downtown EC",
+  "Heights Express Care",
+  "Grand Express Care",
+  "Central Express Care"
+  
+)
+
+sdc.person.ids <- df.processed %>% 
   filter(
-    Location,
-    Facility
+    Location %in% sdcec.list
   ) %>% 
-  summarise(
-    distinct(EncounterID)
+  select(
+    PersonID
+  ) %>% 
+  distinct(
+    PersonID
   )
+
+df.processed.sdc <- df.processed %>% 
+  filter(
+    PersonID %in% sdc.person.ids$PersonID
+  )
+
 ```
 
+# SDC/EC Descriptives
+
+## Top 50 ICD-10 Codes for Primary Dx
+
+## Top 50 ICD-10 Codes for Clinical Dx
+
+## Top 50 ICD-10 Codes for Diagnosis Priority 1
