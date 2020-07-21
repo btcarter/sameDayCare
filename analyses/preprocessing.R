@@ -16,7 +16,7 @@ library(icd) # for reading in ICD10 classifying information and calculating risk
 data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                            "CSI & David Hedges - Same Day Care Project", "data")
 
-df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-06-29.csv")
+df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-07-21.csv")
 
 out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                           "CSI & David Hedges - Same Day Care Project", "data")
@@ -30,6 +30,7 @@ cols <- c(
   "EncounterID",
   "AppointmentID",
   "ActiveIndicatorCD",
+  "AdmitAge",
   "Ethnicity",
   "Language",
   "Race",
@@ -130,7 +131,7 @@ length(unique(df$ZipCode))
 length(unique(df$ICD))
 mean(df$CharlsonDeyoScore, na.rm = TRUE)
 
-# Post preprocessing
+# Post preprocessing checks
 
 length(unique(df.processed$PersonID))
 length(unique(df.processed$EncounterID))
@@ -143,6 +144,7 @@ length(unique(df.processed$ICD))
 mean(df.processed$CharlsonDeyoScore, na.rm = TRUE)
 
 
+# select SDC/EC individuals
 sdcec.list <- c(
   "SDC Downtown",
   "SDC Downtown Nurse",
@@ -156,36 +158,57 @@ sdcec.list <- c(
   
 )
 
-sdc.person.ids <- df.processed %>% 
+sdc.persons <- df.processed %>% 
   filter(
     Location %in% sdcec.list
   ) %>% 
-  select(
-    PersonID
-  ) %>% 
   distinct(
     PersonID
-  )
+  ) %>% 
+  left_join(
+    df.processed[, c("PersonID",
+                     "Sex",
+                     "Ethnicity",
+                     "Race",
+                     "Language",
+                     "Marital_Status",
+                     "ZipCode",
+                     "RespiratoryFailure",
+                     "CharlsonDeyoScore")],
+    by = "PersonID"
+  ) %>% 
+  distinct()
+
 
 df.processed.sdc <- df.processed %>% 
   filter(
     PersonID %in% sdc.person.ids$PersonID
   )
 
+# c("Location", "Facility", "AdmitType", "EncounterType",
+#   +                 "ReasonForVisit", "DiagnosisFreeTXT", "DiagnosisPrioritySEQ",
+#   +                 "ICD", "DiagnosisType", "DiagnosisDSC", "DiagnosisNormDSC",
+#   +                 "RespiratoryFailure", "CharlsonDeyoScore", "ICD_block", "ICD_code")
+
+# unique locations 
+person.Location <- df.processed.sdc %>% 
+  select(
+    PersonID,
+    EncounterID,
+    Location
+  ) %>% 
+  distinct() %>% 
+  group_by(
+    PersonID,
+    EncounterID
+  ) %>% 
+  summarise(
+    Location = paste(Location, collapse = "; ")
+  )
 
 
-smash.it <- function(data = data.frame(), group = array(), smash = character()){
-  data %>% 
-    
-}
 
 
-
-
-# SDC/EC Descriptives
-
-## Top 50 ICD-10 Codes for Primary Dx
-
-## Top 50 ICD-10 Codes for Clinical Dx
-
-## Top 50 ICD-10 Codes for Diagnosis Priority 1
+# variables to add
+# first DTS for encounter, duration of encounter
+# did they return?

@@ -19,6 +19,7 @@ WHERE
 person AS (
 SELECT
   DISTINCT PersonID
+  ,BirthDTS
   ,EthnicGroupCVDisplayDSC AS Ethnicity
 	,LanguageCVDisplayDSC AS Language
 	,MaritalTypeCVDisplayDSC AS Marital_Status
@@ -165,6 +166,7 @@ SELECT DISTINCT
   ,day.EncounterID AS EncounterID
   ,day.ScheduleAppointmentID AS AppointmentID
   ,day.ActiveIndicatorCD
+  ,DATEDIFF(YEAR, person.BirthDTS, day.BeginDTS) AS AdmitAge
   ,person.Ethnicity AS Ethnicity
   ,person.Language AS Language
   ,person.Race AS Race
