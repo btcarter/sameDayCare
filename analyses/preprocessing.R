@@ -1,27 +1,27 @@
----
-title: "Same Day Care 2.0"
-output:
-  html_document:
-    df_print: paged
-    code_folding: hide
----
+#####
+# PREAMBLE
+# Author: Benjamin Carter
+# Objective: process output from the SQL script and create usable CSVs for the
+#   SDC EDA and ML projects.
+###
 
-```{r setup}
 # packages ####
 library(dplyr)
 library(tidyr)
 library(stringr)
 library(ggplot2)
-library(icd.data)
 library(icd) # for reading in ICD10 classifying information and calculating risk scores
 
 # paths ####
-data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", "CSI & David Hedges - Same Day Care Project", "data")
-df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-06-29.csv")
-out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", "CSI & David Hedges - Same Day Care Project", "results")
-```
+data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
+                           "CSI & David Hedges - Same Day Care Project", "data")
 
-```{r loadData}
+df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-06-29.csv")
+
+out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
+                          "CSI & David Hedges - Same Day Care Project", "data")
+
+
 # load data ####
 
 cols <- c(
@@ -62,11 +62,6 @@ df <- read.csv2(
   )
 
 ICD <- icd10cm2019
-
-```
-
-
-```{r preproc}
 
 # correct bad entries ####
 df[1,1] <- "2017-01-01 00:00:00.0000000"
@@ -123,35 +118,30 @@ df.processed <- df %>%
   )
 
 
-
-```
-
 # Basic stats for all patient encounters from 2017-2019
 
-Unique PersonIDs: `r length(unique(df$PersonID))`
-Unique EncounterIDs: `r length(unique(df$EncounterID))`
-Primary Dx: `r nrow(df[df$DiagnosisType == "Primary Diagnosis", ])`
-Secondary Dx: `r nrow(df[df$DiagnosisType == "Secondary Diagnosis", ])`
-Admit Dx: `r nrow(df[df$DiagnosisType == "Admit Diagnosis", ])`
-Clinical Dx: `r nrow(df[df$DiagnosisType == "Clinical Diagnosis", ])`
-Unique Zipcodes: `r length(unique(df$ZipCode))`
-Unique ICD-10s: `r length(unique(df$ICD))`
-Average Charlson-Deyo: `r mean(df$CharlsonDeyoScore, na.rm = TRUE)`
+length(unique(df$PersonID))
+length(unique(df$EncounterID))
+nrow(df[df$DiagnosisType == "Primary Diagnosis", ])
+nrow(df[df$DiagnosisType == "Secondary Diagnosis", ])
+nrow(df[df$DiagnosisType == "Admit Diagnosis", ])
+nrow(df[df$DiagnosisType == "Clinical Diagnosis", ])
+length(unique(df$ZipCode))
+length(unique(df$ICD))
+mean(df$CharlsonDeyoScore, na.rm = TRUE)
 
 # Post preprocessing
 
-Unique PersonIDs: `r length(unique(df.processed$PersonID))`
-Unique EncounterIDs: `r length(unique(df.processed$EncounterID))`
-Primary Dx: `r nrow(df.processed[df.processed$DiagnosisType == "Primary Diagnosis", ])`
-Secondary Dx: `r nrow(df.processed[df.processed$DiagnosisType == "Secondary Diagnosis", ])`
-Admit Dx: `r nrow(df.processed[df.processed$DiagnosisType == "Admit Diagnosis", ])`
-Clinical Dx: `r nrow(df.processed[df.processed$DiagnosisType == "Clinical Diagnosis", ])`
-Unique Zipcodes: `r length(unique(df.processed$ZipCode))`
-Unique ICD-10s: `r length(unique(df.processed$ICD))`
-Average Charlson-Deyo: `r mean(df.processed$CharlsonDeyoScore, na.rm = TRUE)`
+length(unique(df.processed$PersonID))
+length(unique(df.processed$EncounterID))
+nrow(df.processed[df.processed$DiagnosisType == "Primary Diagnosis", ])
+nrow(df.processed[df.processed$DiagnosisType == "Secondary Diagnosis", ])
+nrow(df.processed[df.processed$DiagnosisType == "Admit Diagnosis", ])
+nrow(df.processed[df.processed$DiagnosisType == "Clinical Diagnosis", ])
+length(unique(df.processed$ZipCode))
+length(unique(df.processed$ICD))
+mean(df.processed$CharlsonDeyoScore, na.rm = TRUE)
 
-
-```{r}
 
 sdcec.list <- c(
   "SDC Downtown",
@@ -182,15 +172,13 @@ df.processed.sdc <- df.processed %>%
     PersonID %in% sdc.person.ids$PersonID
   )
 
-```
 
-```{r collapserows}
 
 smash.it <- function(data = data.frame(), group = array(), smash = character()){
   data %>% 
     
 }
-```
+
 
 
 
