@@ -190,12 +190,12 @@ df.processed.sdc <- df.processed %>%
 #   +                 "ICD", "DiagnosisType", "DiagnosisDSC", "DiagnosisNormDSC",
 #   +                 "RespiratoryFailure", "CharlsonDeyoScore", "ICD_block", "ICD_code")
 
-# unique locations 
-person.Location <- df.processed.sdc %>% 
+# unique ICDs 
+person.ICD_code <- df.processed.sdc %>% 
   select(
     PersonID,
     EncounterID,
-    Location
+    ICD_code
   ) %>% 
   distinct() %>% 
   group_by(
@@ -203,8 +203,25 @@ person.Location <- df.processed.sdc %>%
     EncounterID
   ) %>% 
   summarise(
-    Location = paste(Location, collapse = "; ")
+    ICD_code = paste(ICD_code, collapse = "; ")
   )
+
+# unique reasons for visits
+person.ReasonForVisit <- df.processed.sdc %>% 
+  select(
+    PersonID,
+    EncounterID,
+    ReasonForVisit
+  ) %>% 
+  distinct() %>% 
+  group_by(
+    PersonID,
+    EncounterID
+  ) %>% 
+  summarise(
+    ReasonForVisit = paste(ReasonForVisit, collapse = "; ")
+  )
+
 
 
 
