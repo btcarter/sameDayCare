@@ -1,6 +1,24 @@
 -- CTEs to assemble smaller bites for processing
+-- sdc patient list
+WITH sdcPatients AS (
+SELECT DISTINCT
+  PersonID
+FROM
+  [Cerner].[Encounter].[EncounterBASE]
+WHERE
+	LocationCVDisplayDSC IN ('SDC Downtown',
+	'SDC Downtown Nurse',
+	'SDC Heights', 'SDC West',
+	'SDC West Nurse',
+	'Billings Clinic Downtown EC',
+	'Heights Express Care',
+	'Grand Express Care',
+	'Central Express Care') AND
+	BeginEffectiveDTS BETWEEN '2017-01-01' AND '2019-12-31'
+),
+
 -- appointment information
-WITH day AS (
+day AS (
 SELECT DISTINCT
 	BeginDTS
 	,PersonID
@@ -188,15 +206,16 @@ SELECT DISTINCT
   ,respiratoryFailure.RespiratoryFailure AS RespiratoryFailure
   ,respiratoryFailure.CharlsonDeyoRiskScoreNBR AS CharlsonDeyoScore
 FROM
-  day
-LEFT JOIN person ON day.PersonID = person.PersonID
-LEFT JOIN zipcode ON day.PersonID = zipcode.PersonID
-LEFT JOIN encounter ON day.EncounterID = encounter.EncounterID
-LEFT JOIN d1 ON day.EncounterID = d1.EncounterID
-  AND day.PersonID = d1.PersonID
-LEFT JOIN d2 ON day.EncounterID = d2.EncounterID
-  AND day.PersonID = d2.PatientID
-  AND d1.DiagnosisID = d2.DiagnosisID
-LEFT JOIN respiratoryFailure ON day.PersonID = respiratoryFailure.PatientID
+  sdcPatients
+  LEFT JOIN day ON sdcPatients.PersonID = day.PersonID
+  LEFT JOIN person ON day.PersonID = person.PersonID
+  LEFT JOIN zipcode ON day.PersonID = zipcode.PersonID
+  LEFT JOIN encounter ON day.EncounterID = encounter.EncounterID
+  LEFT JOIN d1 ON day.EncounterID = d1.EncounterID
+	AND day.PersonID = d1.PersonID
+  LEFT JOIN d2 ON day.EncounterID = d2.EncounterID
+	AND day.PersonID = d2.PatientID
+	AND d1.DiagnosisID = d2.DiagnosisID
+  LEFT JOIN respiratoryFailure ON day.PersonID = respiratoryFailure.PatientID
 WHERE day.BeginDTS BETWEEN '2017-01-01' AND '2019-12-31'
 ORDER BY day.BeginDTS, day.PersonID, day.EncounterID
