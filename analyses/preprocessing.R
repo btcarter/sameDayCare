@@ -1,5 +1,4 @@
-#####
-# PREAMBLE
+# PREAMBLE #####
 # Author: Benjamin Carter
 # Objective: process output from the SQL script and create usable CSVs for the
 #   SDC EDA and ML projects.
@@ -16,7 +15,7 @@ library(icd) # for reading in ICD10 classifying information and calculating risk
 data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                            "CSI & David Hedges - Same Day Care Project", "data")
 
-df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-07-21.csv")
+df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-08-19.csv")
 
 out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                           "CSI & David Hedges - Same Day Care Project", "data")
@@ -65,7 +64,7 @@ df <- read.csv2(
 ICD <- icd10cm2019
 
 # correct bad entries ####
-df[1,1] <- "2017-01-01 00:00:00.0000000"
+df[1,1] <- "2017-01-01 08:00:00.0000000"
 
 df.processed <- df %>% 
   mutate(
@@ -84,6 +83,10 @@ df.processed <- df %>%
     Ethnicity = na_if(
       Ethnicity,
       " "
+    ),
+    ReasonForVisit = na_if(
+      ReasonForVisit,
+      "NA"
     )
   ) %>% 
   mutate(
@@ -119,82 +122,46 @@ df.processed <- df %>%
   )
 
 
-# Basic stats for all patient encounters from 2017-2019
-
-length(unique(df$PersonID))
-length(unique(df$EncounterID))
-nrow(df[df$DiagnosisType == "Primary Diagnosis", ])
-nrow(df[df$DiagnosisType == "Secondary Diagnosis", ])
-nrow(df[df$DiagnosisType == "Admit Diagnosis", ])
-nrow(df[df$DiagnosisType == "Clinical Diagnosis", ])
-length(unique(df$ZipCode))
-length(unique(df$ICD))
-mean(df$CharlsonDeyoScore, na.rm = TRUE)
-
-# Post preprocessing checks
-
-length(unique(df.processed$PersonID))
-length(unique(df.processed$EncounterID))
-nrow(df.processed[df.processed$DiagnosisType == "Primary Diagnosis", ])
-nrow(df.processed[df.processed$DiagnosisType == "Secondary Diagnosis", ])
-nrow(df.processed[df.processed$DiagnosisType == "Admit Diagnosis", ])
-nrow(df.processed[df.processed$DiagnosisType == "Clinical Diagnosis", ])
-length(unique(df.processed$ZipCode))
-length(unique(df.processed$ICD))
-mean(df.processed$CharlsonDeyoScore, na.rm = TRUE)
-
-
-# select SDC/EC individuals
-sdcec.list <- c(
-  "SDC Downtown",
-  "SDC Downtown Nurse",
-  "SDC Heights",
-  "SDC West",
-  "SDC West Nurse",
-  "Billings Clinic Downtown EC",
-  "Heights Express Care",
-  "Grand Express Care",
-  "Central Express Care"
-  
+# Basic stats for all patient encounters from 2017-2019 ####
+raw <- c(
+  length(unique(df$PersonID)),
+  length(unique(df$EncounterID)),
+  nrow(df[df$DiagnosisType == "Primary Diagnosis", ]),
+  nrow(df[df$DiagnosisType == "Secondary Diagnosis", ]),
+  nrow(df[df$DiagnosisType == "Admit Diagnosis", ]),
+  nrow(df[df$DiagnosisType == "Clinical Diagnosis", ]),
+  length(unique(df$ZipCode)),
+  length(unique(df$ICD)),
+  mean(df$CharlsonDeyoScore, na.rm = TRUE)
 )
 
-sdc.persons <- df.processed %>% 
-  filter(
-    Location %in% sdcec.list
-  ) %>% 
-  distinct(
-    PersonID
-  ) %>% 
-  left_join(
-    df.processed[, c("PersonID",
-                     "Sex",
-                     "Ethnicity",
-                     "Race",
-                     "Language",
-                     "Marital_Status",
-                     "ZipCode",
-                     "RespiratoryFailure",
-                     "CharlsonDeyoScore")],
-    by = "PersonID"
-  ) %>% 
-  distinct()
+processed <- c(
+  length(unique(df.processed$PersonID)),
+  length(unique(df.processed$EncounterID)),
+  nrow(df.processed[df.processed$DiagnosisType == "Primary Diagnosis", ]),
+  nrow(df.processed[df.processed$DiagnosisType == "Secondary Diagnosis", ]),
+  nrow(df.processed[df.processed$DiagnosisType == "Admit Diagnosis", ]),
+  nrow(df.processed[df.processed$DiagnosisType == "Clinical Diagnosis", ]),
+  length(unique(df.processed$ZipCode)),
+  length(unique(df.processed$ICD)),
+  mean(df.processed$CharlsonDeyoScore, na.rm = TRUE)
+)
 
 
-df.processed.sdc <- df.processed %>% 
-  filter(
-    PersonID %in% sdc.person.ids$PersonID
-  )
+df.prepost.comparison <- data.frame(
+  raw,
+  processed
+)
 
-# c("Location", "Facility", "AdmitType", "EncounterType",
-#   +                 "ReasonForVisit", "DiagnosisFreeTXT", "DiagnosisPrioritySEQ",
-#   +                 "ICD", "DiagnosisType", "DiagnosisDSC", "DiagnosisNormDSC",
-#   +                 "RespiratoryFailure", "CharlsonDeyoScore", "ICD_block", "ICD_code")
+# FLATTEN DATA ####
 
+pancake.stack <- list()
 # unique ICDs 
-person.ICD_code <- df.processed.sdc %>% 
+pancake.stack$ICD_code <- df.processed %>% 
   select(
     PersonID,
     EncounterID,
+    DiagnosisPrioritySEQ,
     ICD_code
   ) %>% 
   distinct() %>% 
@@ -202,15 +169,20 @@ person.ICD_code <- df.processed.sdc %>%
     PersonID,
     EncounterID
   ) %>% 
+  arrange(
+    DiagnosisPrioritySEQ
+  ) %>% 
   summarise(
     ICD_code = paste(ICD_code, collapse = "; ")
-  )
+  ) %>% 
+  ungroup()
 
 # unique reasons for visits
-person.ReasonForVisit <- df.processed.sdc %>% 
+pancake.stack$ReasonForVisit <- df.processed %>% 
   select(
     PersonID,
     EncounterID,
+    DiagnosisPrioritySEQ,
     ReasonForVisit
   ) %>% 
   distinct() %>% 
@@ -218,13 +190,120 @@ person.ReasonForVisit <- df.processed.sdc %>%
     PersonID,
     EncounterID
   ) %>% 
+  arrange(
+    DiagnosisPrioritySEQ
+  ) %>% 
   summarise(
     ReasonForVisit = paste(ReasonForVisit, collapse = "; ")
-  )
+  ) %>% 
+  ungroup()
 
+# unique diagnosis free text
+pancake.stack$DiagnosisFreeTXT <- df.processed %>% 
+  select(
+    PersonID,
+    EncounterID,
+    DiagnosisPrioritySEQ,
+    DiagnosisFreeTXT
+  ) %>% 
+  distinct() %>% 
+  group_by(
+    PersonID,
+    EncounterID
+  ) %>% 
+  arrange(
+    DiagnosisPrioritySEQ
+  ) %>% 
+  summarise(
+    DiagnosisFreeTXT = paste(DiagnosisFreeTXT, collapse = "; ")
+  ) %>% 
+  ungroup()
 
+# unique diagnosis type
+pancake.stack$DiagnosisType <- df.processed %>% 
+  select(
+    PersonID,
+    EncounterID,
+    DiagnosisPrioritySEQ,
+    DiagnosisType
+  ) %>% 
+  distinct() %>% 
+  group_by(
+    PersonID,
+    EncounterID
+  ) %>% 
+  arrange(
+    DiagnosisPrioritySEQ
+  ) %>% 
+  summarise(
+    DiagnosisType = paste(DiagnosisType, collapse = "; ")
+  ) %>% 
+  ungroup()
 
+#unique diagnosisdsc
+pancake.stack$DiagnosisDSC <- df.processed %>% 
+  select(
+    PersonID,
+    EncounterID,
+    DiagnosisPrioritySEQ,
+    DiagnosisDSC
+  ) %>% 
+  distinct() %>% 
+  group_by(
+    PersonID,
+    EncounterID
+  ) %>% 
+  arrange(
+    DiagnosisPrioritySEQ
+  ) %>% 
+  summarise(
+    DiagnosisDSC = paste(DiagnosisDSC, collapse = "; ")
+  ) %>% 
+  ungroup()
 
+#unique diagnosisdsc
+pancake.stack$DiagnosisNormDSC <- df.processed %>% 
+  select(
+    PersonID,
+    EncounterID,
+    DiagnosisPrioritySEQ,
+    DiagnosisNormDSC
+  ) %>% 
+  distinct() %>% 
+  group_by(
+    PersonID,
+    EncounterID
+  ) %>% 
+  arrange(
+    DiagnosisPrioritySEQ
+  ) %>% 
+  summarise(
+    DiagnosisNormDSC = paste(DiagnosisNormDSC, collapse = "; ")
+  ) %>% 
+  ungroup()
+
+# unique ICD block
+pancake.stack$ICD_block <- df.processed %>% 
+  select(
+    PersonID,
+    EncounterID,
+    DiagnosisPrioritySEQ,
+    ICD_block
+  ) %>% 
+  distinct() %>% 
+  group_by(
+    PersonID,
+    EncounterID
+  ) %>% 
+  arrange(
+    DiagnosisPrioritySEQ
+  ) %>% 
+  summarise(
+    ICD_block = paste(ICD_block, collapse = "; ")
+  ) %>% 
+  ungroup()
+
+pancake.stack$Encounters <- 
 
 # variables to add
 # first DTS for encounter, duration of encounter
