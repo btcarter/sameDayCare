@@ -123,35 +123,35 @@ df.processed <- df %>%
 
 
 # Basic stats for all patient encounters from 2017-2019 ####
-raw <- c(
-  length(unique(df$PersonID)),
-  length(unique(df$EncounterID)),
-  nrow(df[df$DiagnosisType == "Primary Diagnosis", ]),
-  nrow(df[df$DiagnosisType == "Secondary Diagnosis", ]),
-  nrow(df[df$DiagnosisType == "Admit Diagnosis", ]),
-  nrow(df[df$DiagnosisType == "Clinical Diagnosis", ]),
-  length(unique(df$ZipCode)),
-  length(unique(df$ICD)),
-  mean(df$CharlsonDeyoScore, na.rm = TRUE)
-)
-
-processed <- c(
-  length(unique(df.processed$PersonID)),
-  length(unique(df.processed$EncounterID)),
-  nrow(df.processed[df.processed$DiagnosisType == "Primary Diagnosis", ]),
-  nrow(df.processed[df.processed$DiagnosisType == "Secondary Diagnosis", ]),
-  nrow(df.processed[df.processed$DiagnosisType == "Admit Diagnosis", ]),
-  nrow(df.processed[df.processed$DiagnosisType == "Clinical Diagnosis", ]),
-  length(unique(df.processed$ZipCode)),
-  length(unique(df.processed$ICD)),
-  mean(df.processed$CharlsonDeyoScore, na.rm = TRUE)
-)
-
-
-df.prepost.comparison <- data.frame(
-  raw,
-  processed
-)
+# raw <- c(
+#   length(unique(df$PersonID)),
+#   length(unique(df$EncounterID)),
+#   nrow(df[df$DiagnosisType == "Primary Diagnosis", ]),
+#   nrow(df[df$DiagnosisType == "Secondary Diagnosis", ]),
+#   nrow(df[df$DiagnosisType == "Admit Diagnosis", ]),
+#   nrow(df[df$DiagnosisType == "Clinical Diagnosis", ]),
+#   length(unique(df$ZipCode)),
+#   length(unique(df$ICD)),
+#   mean(df$CharlsonDeyoScore, na.rm = TRUE)
+# )
+# 
+# processed <- c(
+#   length(unique(df.processed$PersonID)),
+#   length(unique(df.processed$EncounterID)),
+#   nrow(df.processed[df.processed$DiagnosisType == "Primary Diagnosis", ]),
+#   nrow(df.processed[df.processed$DiagnosisType == "Secondary Diagnosis", ]),
+#   nrow(df.processed[df.processed$DiagnosisType == "Admit Diagnosis", ]),
+#   nrow(df.processed[df.processed$DiagnosisType == "Clinical Diagnosis", ]),
+#   length(unique(df.processed$ZipCode)),
+#   length(unique(df.processed$ICD)),
+#   mean(df.processed$CharlsonDeyoScore, na.rm = TRUE)
+# )
+# 
+# 
+# df.prepost.comparison <- data.frame(
+#   raw,
+#   processed
+# )
 
 # FLATTEN DATA ####
 
@@ -261,7 +261,7 @@ pancake.stack$DiagnosisDSC <- df.processed %>%
   ) %>% 
   ungroup()
 
-#unique diagnosisdsc
+#unique diagnosisNormdsc
 pancake.stack$DiagnosisNormDSC <- df.processed %>% 
   select(
     PersonID,
@@ -303,7 +303,50 @@ pancake.stack$ICD_block <- df.processed %>%
   ) %>% 
   ungroup()
 
-pancake.stack$Encounters <- 
+# unique encounters
+pancake.stack$Encounters <- df.processed %>% 
+  select(
+    DTS,
+    PersonID,
+    EncounterID,
+    AppointmentID,       
+    ActiveIndicatorCD,
+    AdmitAge,
+    Ethnicity,
+    Language,
+    Race,
+    Marital_Status,
+    Sex,
+    Religion,
+    ZipCode,
+    Location,
+    Facility,
+    AdmitType,           
+    EncounterType
+  ) %>% 
+  distinct() %>% 
+  group_by(
+    PersonID
+  ) %>% 
+  arrange(
+    PersonID,
+    EncounterID,
+    DTS
+  ) %>% 
+  ungroup()
+
+pancake.stack$Encounters %>% 
+  select(
+    DTS,
+    EncounterID,
+    Location
+  ) %>% 
+  group_by(DTS, EncounterID) %>%  
+  summarise(
+    'total' = n()
+  ) %>% 
+  arrange(desc(`total`), EncounterID)
+  
 
 # variables to add
 # first DTS for encounter, duration of encounter
