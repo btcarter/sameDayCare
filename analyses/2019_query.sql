@@ -6,14 +6,19 @@ SELECT DISTINCT
 FROM
   [Cerner].[Encounter].[EncounterBASE]
 WHERE
-	LocationCVDisplayDSC IN ('SDC Downtown',
-	'SDC Downtown Nurse',
-	'SDC Heights', 'SDC West',
-	'SDC West Nurse',
-	'Billings Clinic Downtown EC',
-	'Heights Express Care',
-	'Grand Express Care',
-	'Central Express Care') AND
+	NurseUnitLocationCVDSC IN ('Express Care Central',
+  'Express Care Grand',
+  'Express Care Heights',
+  'Heights Same Day Care',
+  'HTS Same Day Care',
+  'Miles City Same Day Care',
+  'Same Day Care',
+  'Same Day Care Lab Schedule',
+  'SDC Downtown Nurse',
+  'SDC West Nurse',
+  'Virtual Same Day Care Miles City',
+  'WE Same Day Care',
+  'West End SDC') AND
 	BeginEffectiveDTS BETWEEN '2017-01-01' AND '2019-12-31'
 ),
 
@@ -59,8 +64,8 @@ WHERE PersonID IN (SELECT DISTINCT
 encounter AS (
 SELECT
   DISTINCT EncounterID
-  ,LocationCVDisplayDSC
-	,FacilityLocationCVDSC
+  ,BuildingLocationCVDSC
+  ,NurseUnitLocationCVDSC
 	,AdmitTypeCVDisplayDSC
 	,EncounterTypeCVDSC
 	,ReasonForVisitDSC
