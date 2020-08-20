@@ -197,8 +197,8 @@ SELECT DISTINCT
   ,person.Sex AS Sex
   ,person.Religion AS Religion
   ,zipcode.zip AS Person_ZipCode
-  ,encounter.LocationCVDisplayDSC AS Location
-  ,encounter.FacilityLocationCVDSC AS Facility
+  ,encounter.BuildingLocationCVDSC AS Building
+  ,encounter.NurseUnitLocationCVDSC AS NurseUnit
   ,encounter.AdmitTypeCVDisplayDSC AS AdmitType
   ,encounter.EncounterTypeCVDSC AS EncounterType
   ,encounter.ReasonForVisitDSC AS ReasonForVisit
