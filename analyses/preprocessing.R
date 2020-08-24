@@ -177,6 +177,27 @@ pancake.stack$ICD_code <- df.processed %>%
   ) %>% 
   ungroup()
 
+
+pancake.stack$PriorityICD <-df.processed %>% 
+  select(
+    PersonID,
+    EncounterID,
+    DiagnosisPrioritySEQ,
+    ICD_code
+  ) %>% 
+  distinct() %>% 
+  group_by(
+    PersonID,
+    EncounterID
+  ) %>% 
+  arrange(
+    DiagnosisPrioritySEQ
+  ) %>% 
+  summarise(
+    ICD_code = paste(ICD_code, collapse = "; ")
+  ) %>% 
+  ungroup()
+
 # unique reasons for visits
 pancake.stack$ReasonForVisit <- df.processed %>% 
   select(
@@ -303,13 +324,33 @@ pancake.stack$ICD_block <- df.processed %>%
   ) %>% 
   ungroup()
 
+# unique ZipCode
+pancake.stack$ZipCode <- df.processed %>% 
+  select(
+    PersonID,
+    EncounterID,
+    DiagnosisPrioritySEQ,
+    ZipCode
+  ) %>% 
+  distinct() %>% 
+  group_by(
+    PersonID,
+    EncounterID
+  ) %>% 
+  arrange(
+    DiagnosisPrioritySEQ
+  ) %>% 
+  summarise(
+    ZipCode = paste(ZipCode, collapse = "; ")
+  ) %>% 
+  ungroup()
+
 # unique encounters
 pancake.stack$Encounters <- df.processed %>% 
   select(
     DTS,
     PersonID,
     EncounterID,
-    AppointmentID,       
     ActiveIndicatorCD,
     AdmitAge,
     Ethnicity,
@@ -318,11 +359,12 @@ pancake.stack$Encounters <- df.processed %>%
     Marital_Status,
     Sex,
     Religion,
-    ZipCode,
-    Location,
-    Facility,
+    Building,
+    NurseUnit,
     AdmitType,           
-    EncounterType
+    EncounterType,
+    RespiratoryFailure,
+    CharlsonDeyoScore
   ) %>% 
   distinct() %>% 
   group_by(
@@ -335,19 +377,42 @@ pancake.stack$Encounters <- df.processed %>%
   ) %>% 
   ungroup()
 
-pancake.stack$Encounters %>% 
-  select(
-    DTS,
-    EncounterID,
-    Location
-  ) %>% 
-  group_by(DTS, EncounterID) %>%  
-  summarise(
-    'total' = n()
-  ) %>% 
-  arrange(desc(`total`), EncounterID)
-  
 
-# variables to add
-# first DTS for encounter, duration of encounter
-# did they return?
+# sew everything together
+df.flat <- pancake.stack$Encounters %>% 
+  left_join(
+    pancake.stack$ZipCode,
+    by = c("PersonID", "EncounterID")
+  ) %>%
+  left_join(
+    pancake.stack$PriorityICD,
+    by = c("PersonID", "EncounterID")
+  ) %>% 
+  left_join(
+    pancake.stack$ICD_block,
+    by = c("PersonID", "EncounterID")
+  ) %>% 
+  left_join(
+    pancake.stack$ICD_code,
+    by = c("PersonID", "EncounterID")
+  ) %>% 
+  left_join(
+    pancake.stack$ReasonForVisit,
+    by = c("PersonID", "EncounterID")
+  ) %>% 
+  left_join(
+    pancake.stack$DiagnosisFreeTXT,
+    by = c("PersonID", "EncounterID")
+  ) %>% 
+  left_join(
+    pancake.stack$DiagnosisType,
+    by = c("PersonID", "EncounterID")
+  ) %>% 
+  left_join(
+    pancake.stack$DiagnosisDSC,
+    by = c("PersonID", "EncounterID")
+  ) %>% 
+  left_join(
+    pancake.stack$DiagnosisNormDSC,
+    by = c("PersonID", "EncounterID")
+  )
