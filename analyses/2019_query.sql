@@ -222,5 +222,5 @@ FROM
 	AND day.PersonID = d2.PatientID
 	AND d1.DiagnosisID = d2.DiagnosisID
   LEFT JOIN respiratoryFailure ON day.PersonID = respiratoryFailure.PatientID
-WHERE day.BeginDTS BETWEEN '2017-01-01' AND '2019-12-31'
-ORDER BY day.BeginDTS, day.PersonID, day.EncounterID
+WHERE day.BeginDTS BETWEEN '2017-01-01' AND '2019-12-31' 
+ORDER BY day.PersonID, day.BeginDTS, day.EncounterID

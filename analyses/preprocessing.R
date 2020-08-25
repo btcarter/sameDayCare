@@ -15,7 +15,7 @@ library(icd) # for reading in ICD10 classifying information and calculating risk
 data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                            "CSI & David Hedges - Same Day Care Project", "data")
 
-df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-08-19.csv")
+df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-08-25.csv")
 
 out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                           "CSI & David Hedges - Same Day Care Project", "data")
@@ -64,7 +64,7 @@ df <- read.csv2(
 ICD <- icd10cm2019
 
 # correct bad entries ####
-df[1,1] <- "2017-01-01 08:00:00.0000000"
+df[1,1] <- "2017-01-25 08:00:00.0000000"
 
 df.processed <- df %>% 
   mutate(
@@ -112,7 +112,8 @@ df.processed <- df %>%
       "([[:alnum:]]*)\\.?([[:alnum:]]*)",
       "\\1\\2",
       ICD
-    )
+    ),
+    DTS = as.Date(DTS)
   ) %>% 
   filter(
     !is.na(ICD_code) # get rid of entries with no ICD-10
@@ -375,8 +376,30 @@ pancake.stack$Encounters <- df.processed %>%
     EncounterID,
     DTS
   ) %>% 
-  ungroup()
-
+  ungroup() %>%  
+  mutate(
+    return_in_14 = if_else(
+      as.numeric(lead(DTS)-DTS) <= 14 & 
+        PersonID == lead(PersonID) & 
+        NurseUnit %in% c(
+          'Express Care Central',
+          'Express Care Grand',
+          'Express Care Heights',
+          'Heights Same Day Care',
+          'HTS Same Day Care',
+          'Miles City Same Day Care',
+          'Same Day Care',
+          'Same Day Care Lab Schedule',
+          'SDC Downtown Nurse',
+          'SDC West Nurse',
+          'Virtual Same Day Care Miles City',
+          'WE Same Day Care',
+          'West End SDC'
+        ),
+      TRUE,
+      FALSE
+    )
+  )
 
 # sew everything together
 df.flat <- pancake.stack$Encounters %>% 
@@ -416,3 +439,17 @@ df.flat <- pancake.stack$Encounters %>%
     pancake.stack$DiagnosisNormDSC,
     by = c("PersonID", "EncounterID")
   )
+
+df.flat %>% 
+  select(
+    PersonID,
+    EncounterID
+  ) %>% 
+  group_by(PersonID, EncounterID) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  arrange(
+    desc(n)
+  ) %>% head()
+
