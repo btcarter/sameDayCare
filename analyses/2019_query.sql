@@ -96,7 +96,7 @@ SELECT DISTINCT
   PersonID
   ,EncounterID
   ,DiagnosisID
-  ,DiagnosisFreeTXT
+  ,DiagnosisTypeCVDSC
   ,DiagnosisPrioritySEQ
   ,BeginEffectiveDTS
 FROM
@@ -120,7 +120,6 @@ SELECT
   ,EncounterID
   ,DiagnosisID
   ,DiagnosisCD
-  ,DiagnosisTypeDSC
   ,DiagnosisDSC
   ,DiagnosisNormDSC
 FROM
@@ -202,12 +201,10 @@ SELECT DISTINCT
   ,encounter.AdmitTypeCVDisplayDSC AS AdmitType
   ,encounter.EncounterTypeCVDSC AS EncounterType
   ,encounter.ReasonForVisitDSC AS ReasonForVisit
-  ,d1.DiagnosisFreeTXT AS DiagnosisFreeTXT
   ,d1.DiagnosisPrioritySEQ AS DiagnosisPrioritySEQ
   ,d2.DiagnosisCD AS ICD
-  ,d2.DiagnosisTypeDSC
+  ,d1.DiagnosisTypeCVDSC
   ,d2.DiagnosisDSC
-  ,d2.DiagnosisNormDSC
   ,respiratoryFailure.RespiratoryFailure AS RespiratoryFailure
   ,respiratoryFailure.CharlsonDeyoRiskScoreNBR AS CharlsonDeyoScore
 FROM
