@@ -42,12 +42,10 @@ cols <- c(
   "AdmitType",
   "EncounterType",
   "ReasonForVisit",
-  "DiagnosisFreeTXT",
   "DiagnosisPrioritySEQ",
   "ICD",
   "DiagnosisType",
   "DiagnosisDSC",
-  "DiagnosisNormDSC",
   "RespiratoryFailure",
   "CharlsonDeyoScore"
 )
@@ -113,13 +111,13 @@ df.processed <- df %>%
       "\\1\\2",
       ICD
     ),
-    DTS = as.Date(DTS)
+    DTS = as.POSIXct(DTS)
   ) %>% 
   filter(
     !is.na(ICD_code) # get rid of entries with no ICD-10
   ) %>% 
   filter(
-    !grepl("^\\d+", ICD_code)
+    !grepl("^\\d+", ICD_code) # get rid of entries with incomplete ICD-10
   )
 
 
@@ -178,7 +176,7 @@ pancake.stack$ICD_code <- df.processed %>%
   ) %>% 
   ungroup()
 
-
+# priority ICD
 pancake.stack$PriorityICD <-df.processed %>% 
   select(
     PersonID,
@@ -194,10 +192,30 @@ pancake.stack$PriorityICD <-df.processed %>%
   arrange(
     DiagnosisPrioritySEQ
   ) %>% 
-  summarise(
-    ICD_code = paste(ICD_code, collapse = "; ")
+  slice(
+    1
   ) %>% 
-  ungroup()
+  ungroup() %>% 
+  rename(
+    PriorityICD = ICD_code
+  )
+
+# ICDs to columns
+pancake.stack$ICD_cols <- df.processed %>% 
+  select(
+    PersonID,
+    EncounterID,
+    ICD_code
+  ) %>% 
+  distinct() %>% 
+  mutate(
+    value = TRUE
+  ) %>% 
+  pivot_wider(
+    names_from = ICD_code,
+    values_from = value,
+    values_fill = FALSE
+  )
 
 # unique reasons for visits
 pancake.stack$ReasonForVisit <- df.processed %>% 
@@ -217,27 +235,6 @@ pancake.stack$ReasonForVisit <- df.processed %>%
   ) %>% 
   summarise(
     ReasonForVisit = paste(ReasonForVisit, collapse = "; ")
-  ) %>% 
-  ungroup()
-
-# unique diagnosis free text
-pancake.stack$DiagnosisFreeTXT <- df.processed %>% 
-  select(
-    PersonID,
-    EncounterID,
-    DiagnosisPrioritySEQ,
-    DiagnosisFreeTXT
-  ) %>% 
-  distinct() %>% 
-  group_by(
-    PersonID,
-    EncounterID
-  ) %>% 
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  summarise(
-    DiagnosisFreeTXT = paste(DiagnosisFreeTXT, collapse = "; ")
   ) %>% 
   ungroup()
 
@@ -283,27 +280,6 @@ pancake.stack$DiagnosisDSC <- df.processed %>%
   ) %>% 
   ungroup()
 
-#unique diagnosisNormdsc
-pancake.stack$DiagnosisNormDSC <- df.processed %>% 
-  select(
-    PersonID,
-    EncounterID,
-    DiagnosisPrioritySEQ,
-    DiagnosisNormDSC
-  ) %>% 
-  distinct() %>% 
-  group_by(
-    PersonID,
-    EncounterID
-  ) %>% 
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  summarise(
-    DiagnosisNormDSC = paste(DiagnosisNormDSC, collapse = "; ")
-  ) %>% 
-  ungroup()
-
 # unique ICD block
 pancake.stack$ICD_block <- df.processed %>% 
   select(
@@ -346,6 +322,23 @@ pancake.stack$ZipCode <- df.processed %>%
   ) %>% 
   ungroup()
 
+# sdc/ec facilities
+SDCEC <- c(
+  'Express Care Central',
+  'Express Care Grand',
+  'Express Care Heights',
+  'Heights Same Day Care',
+  'HTS Same Day Care',
+  'Miles City Same Day Care',
+  'Same Day Care',
+  'Same Day Care Lab Schedule',
+  'SDC Downtown Nurse',
+  'SDC West Nurse',
+  'Virtual Same Day Care Miles City',
+  'WE Same Day Care',
+  'West End SDC'
+)
+
 # unique encounters
 pancake.stack$Encounters <- df.processed %>% 
   select(
@@ -364,8 +357,7 @@ pancake.stack$Encounters <- df.processed %>%
     NurseUnit,
     AdmitType,           
     EncounterType,
-    RespiratoryFailure,
-    CharlsonDeyoScore
+    RespiratoryFailure
   ) %>% 
   distinct() %>% 
   group_by(
@@ -379,23 +371,9 @@ pancake.stack$Encounters <- df.processed %>%
   ungroup() %>%  
   mutate(
     return_in_14 = if_else(
-      as.numeric(lead(DTS)-DTS) <= 14 & 
+      lead(unclass(DTS))-unclass(DTS) <= 14*3600 & 
         PersonID == lead(PersonID) & 
-        NurseUnit %in% c(
-          'Express Care Central',
-          'Express Care Grand',
-          'Express Care Heights',
-          'Heights Same Day Care',
-          'HTS Same Day Care',
-          'Miles City Same Day Care',
-          'Same Day Care',
-          'Same Day Care Lab Schedule',
-          'SDC Downtown Nurse',
-          'SDC West Nurse',
-          'Virtual Same Day Care Miles City',
-          'WE Same Day Care',
-          'West End SDC'
-        ),
+        NurseUnit %in% SDCEC,
       TRUE,
       FALSE
     )
@@ -422,11 +400,7 @@ df.flat <- pancake.stack$Encounters %>%
   left_join(
     pancake.stack$ReasonForVisit,
     by = c("PersonID", "EncounterID")
-  ) %>% 
-  left_join(
-    pancake.stack$DiagnosisFreeTXT,
-    by = c("PersonID", "EncounterID")
-  ) %>% 
+  ) %>%  
   left_join(
     pancake.stack$DiagnosisType,
     by = c("PersonID", "EncounterID")
@@ -435,21 +409,29 @@ df.flat <- pancake.stack$Encounters %>%
     pancake.stack$DiagnosisDSC,
     by = c("PersonID", "EncounterID")
   ) %>% 
-  left_join(
-    pancake.stack$DiagnosisNormDSC,
-    by = c("PersonID", "EncounterID")
+  distinct()
+
+# check <- df.flat %>% 
+#   group_by(EncounterID) %>% 
+#   summarise(
+#     n = n()
+#   ) %>% 
+#   ungroup() %>% 
+#   left_join(
+#     df.flat,
+#     by = 'EncounterID'
+#   ) %>% 
+#   arrange(
+#     desc(n)
+#   )
+
+df.flat.sdc.only <- df.flat %>% 
+  filter(
+    NurseUnit %in% SDCEC
   )
 
-df.flat %>% 
-  select(
-    PersonID,
-    EncounterID
-  ) %>% 
-  group_by(PersonID, EncounterID) %>% 
-  summarise(
-    n = n()
-  ) %>% 
-  arrange(
-    desc(n)
-  ) %>% head()
+# exclude immediate referrals to the ED, should happen within the hour of SDC encounter
 
+# make individual ICDs their own variables via pivot
+
+lm(return_in_14 ~ ., data = df.flat.sdc.only)
