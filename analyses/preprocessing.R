@@ -387,10 +387,6 @@ df.flat.sdc.only <- df.flat %>%
     NurseUnit %in% SDCEC
   )
 
-write.csv(df.flat.sdc.only,
-           file = file.path(out.dir.path, "sdc.flat.csv"),
-           quote = FALSE,
-           row.names = FALSE,
-           sep = ",")
-
+writexl::write_xlsx(df.flat.sdc.only,
+                    path = file.path(out.dir.path, "sdc.flat.xlsx"))
 
