@@ -8,14 +8,13 @@
 library(dplyr)
 library(tidyr)
 library(stringr)
-library(ggplot2)
-library(icd) # for reading in ICD10 classifying information and calculating risk scores
+
 
 # paths ####
 data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                            "CSI & David Hedges - Same Day Care Project", "data")
 
-df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-08-25.csv")
+df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-08-26.csv")
 
 out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                           "CSI & David Hedges - Same Day Care Project", "data")
@@ -58,8 +57,6 @@ df <- read.csv2(
   stringsAsFactors = FALSE,
   na.strings = "NULL"
   )
-
-ICD <- icd10cm2019
 
 # correct bad entries ####
 df[1,1] <- "2017-01-25 08:00:00.0000000"
@@ -121,41 +118,13 @@ df.processed <- df %>%
   )
 
 
-# Basic stats for all patient encounters from 2017-2019 ####
-# raw <- c(
-#   length(unique(df$PersonID)),
-#   length(unique(df$EncounterID)),
-#   nrow(df[df$DiagnosisType == "Primary Diagnosis", ]),
-#   nrow(df[df$DiagnosisType == "Secondary Diagnosis", ]),
-#   nrow(df[df$DiagnosisType == "Admit Diagnosis", ]),
-#   nrow(df[df$DiagnosisType == "Clinical Diagnosis", ]),
-#   length(unique(df$ZipCode)),
-#   length(unique(df$ICD)),
-#   mean(df$CharlsonDeyoScore, na.rm = TRUE)
-# )
-# 
-# processed <- c(
-#   length(unique(df.processed$PersonID)),
-#   length(unique(df.processed$EncounterID)),
-#   nrow(df.processed[df.processed$DiagnosisType == "Primary Diagnosis", ]),
-#   nrow(df.processed[df.processed$DiagnosisType == "Secondary Diagnosis", ]),
-#   nrow(df.processed[df.processed$DiagnosisType == "Admit Diagnosis", ]),
-#   nrow(df.processed[df.processed$DiagnosisType == "Clinical Diagnosis", ]),
-#   length(unique(df.processed$ZipCode)),
-#   length(unique(df.processed$ICD)),
-#   mean(df.processed$CharlsonDeyoScore, na.rm = TRUE)
-# )
-# 
-# 
-# df.prepost.comparison <- data.frame(
-#   raw,
-#   processed
-# )
+
 
 # FLATTEN DATA ####
 
 pancake.stack <- list()
-# unique ICDs 
+
+# unique ICDs - maybe expand this so it's wide?
 pancake.stack$ICD_code <- df.processed %>% 
   select(
     PersonID,
@@ -175,6 +144,21 @@ pancake.stack$ICD_code <- df.processed %>%
     ICD_code = paste(ICD_code, collapse = "; ")
   ) %>% 
   ungroup()
+
+# ICD by DiagnosisType
+pancake.stack$ICD_DiagnosisType <- df.processed %>% 
+  select(
+    PersonID,
+    EncounterID,
+    DiagnosisType,
+    ICD_code
+  ) %>% 
+  distinct() %>% 
+  pivot_wider(
+    names_from = DiagnosisType,
+    values_from = ICD_code
+  )
+
 
 # priority ICD
 pancake.stack$PriorityICD <-df.processed %>% 
@@ -198,23 +182,6 @@ pancake.stack$PriorityICD <-df.processed %>%
   ungroup() %>% 
   rename(
     PriorityICD = ICD_code
-  )
-
-# ICDs to columns
-pancake.stack$ICD_cols <- df.processed %>% 
-  select(
-    PersonID,
-    EncounterID,
-    ICD_code
-  ) %>% 
-  distinct() %>% 
-  mutate(
-    value = TRUE
-  ) %>% 
-  pivot_wider(
-    names_from = ICD_code,
-    values_from = value,
-    values_fill = FALSE
   )
 
 # unique reasons for visits
@@ -411,27 +378,19 @@ df.flat <- pancake.stack$Encounters %>%
   ) %>% 
   distinct()
 
-# check <- df.flat %>% 
-#   group_by(EncounterID) %>% 
-#   summarise(
-#     n = n()
-#   ) %>% 
-#   ungroup() %>% 
-#   left_join(
-#     df.flat,
-#     by = 'EncounterID'
-#   ) %>% 
-#   arrange(
-#     desc(n)
-#   )
-
 df.flat.sdc.only <- df.flat %>% 
+  select(
+    -EncounterID,
+    -ActiveIndicatorCD
+  ) %>% 
   filter(
     NurseUnit %in% SDCEC
   )
 
-# exclude immediate referrals to the ED, should happen within the hour of SDC encounter
+write.csv(df.flat.sdc.only,
+           file = file.path(out.dir.path, "sdc.flat.csv"),
+           quote = FALSE,
+           row.names = FALSE,
+           sep = ",")
 
-# make individual ICDs their own variables via pivot
 
-lm(return_in_14 ~ ., data = df.flat.sdc.only)
