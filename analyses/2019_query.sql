@@ -143,27 +143,6 @@ FROM
 SAM.Readmissions.SummaryIndex
 ),
 
--- have they ever had an encounter with a heart failure diagnosis
-heartFailure AS (
-SELECT
-  DISTINCT PatientID
-  ,EncounterID
-  ,CASE WHEN DiagnosisCD IS NOT NULL THEN 1 ELSE 0 END AS HeartFailure
-FROM
-  SAM.Cardiovascular.HeartFailureEventDiagnosisBASE
-),
-
-
--- ever diagnosed with diabetes?
-diabetes AS (
-SELECT
-  DISTINCT PatientID
-  ,REPLACE(PatientEncounterID, 'EN', '') AS EncounterID
-  ,EventSubTypeNM AS Diabetes
-FROM
-SAM.DiabetesBTC.EventDiabetes
-),
-
 zipcode AS (
 SELECT
   DISTINCT NewPersonID AS PersonID
@@ -219,5 +198,5 @@ FROM
 	AND day.PersonID = d2.PatientID
 	AND d1.DiagnosisID = d2.DiagnosisID
   LEFT JOIN respiratoryFailure ON day.PersonID = respiratoryFailure.PatientID
-WHERE day.BeginDTS BETWEEN '2017-01-01' AND '2019-12-31' 
+WHERE day.BeginDTS BETWEEN '2017-01-01' AND '2019-12-31'
 ORDER BY day.PersonID, day.BeginDTS, day.EncounterID
