@@ -17,9 +17,9 @@ out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC",
 
 # data
 
-df.flat.name <- file.path(data.dir.path, "sdc.flat.csv")
+df.flat.name <- file.path(data.dir.path, "sdc.flat.xlsx")
 
-df.flat <- read.csv(df.flat.name)
+df.flat <- readxl::read_xlsx(df.flat.name)
 
 ICD <- icd10cm2019
 
