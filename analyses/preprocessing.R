@@ -8,6 +8,10 @@
 library(dplyr)
 library(tidyr)
 library(stringr)
+library(tidytext)
+library(tm)
+library(widyr)
+library(topicmodels)
 
 
 # paths ####
@@ -380,13 +384,17 @@ df.flat <- pancake.stack$Encounters %>%
 
 df.flat.sdc.only <- df.flat %>% 
   select(
-    -EncounterID,
     -ActiveIndicatorCD
   ) %>% 
   filter(
     NurseUnit %in% SDCEC
   )
 
+
+
+
+
+# write final df to file for later use.
+
 writexl::write_xlsx(df.flat.sdc.only,
                     path = file.path(out.dir.path, "sdc.flat.xlsx"))
-
