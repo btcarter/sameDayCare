@@ -5,6 +5,7 @@
 # ENVIRONMENT ####
 # packages
 library(dplyr)
+library(tidyr)
 library(icd) # for reading in ICD10 classifying information and calculating risk scores
 library(ggplot2)
 library(compareGroups)
@@ -14,7 +15,7 @@ data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC",
                            "CSI & David Hedges - Same Day Care Project", "data")
 
 out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
-                          "CSI & David Hedges - Same Day Care Project", "data")
+                          "CSI & David Hedges - Same Day Care Project", "results")
 
 # data
 
@@ -22,11 +23,14 @@ df.flat.name <- file.path(data.dir.path, "sdc.flat.xlsx")
 
 df.flat <- readxl::read_xlsx(df.flat.name)
 
-ICD <- icd10cm2019
+ICD <- icd10cm2019 %>% 
+  mutate(
+    code = as.character(code)
+  )
 
 # ANALYSIS ####
 
-# demographics
+# table 1 ####
 df.comp <- df.flat %>% 
   mutate(
     return_in_14 = as.factor(return_in_14)
@@ -50,11 +54,12 @@ comp.obj <- compareGroups(
   max.xlev = 55
 )
 
-createTable(comp.obj)
+createTable(comp.obj) %>% 
+  export2xls(file = file.path(out.dir.path,
+                              "table1.xlsx"))
 
 
 # most common Priority ICD10
-
 df.icd.counts <- df.flat %>% 
   group_by(PriorityICD, return_in_14) %>% 
   summarise(
@@ -123,36 +128,56 @@ df.icd.sig <- df.icd.counts %>%
 df.icd.counts <- NULL
 df.chi.results <- NULL
 
-
+# top 50 ICD-10 codes ####
 top50 <- df.icd.sig %>% 
   arrange(
-    desc(ratio),
+    desc(Chi2),
     p
   ) %>% 
-  head(50)
-
-bottom50 <- df.icd.sig %>% 
-  arrange(
-    ratio,
-    p
-  ) %>% 
-  head(50)
-
-
-top50.filtered <- df.icd.sig %>% 
-  filter(
-    `TRUE` + `FALSE` >= 100
+  head(50) %>% 
+  left_join(
+    ICD[c(1,3,6:8)],
+    by = c("PriorityICD" = "code")
   ) %>% 
   arrange(
-    desc(ratio),
-    p
+    desc(ratio)
+  )
+
+writexl::write_xlsx(top50,
+            path = file.path(out.dir.path,
+                             "top50.xlsx"))
+
+# Average number of visits ####
+df.flat %>% 
+  group_by(
+    PersonID
   ) %>% 
-  head(50)
+  summarise(
+    n = n()
+  ) %>% 
+  ggplot(
+    aes(n)
+  ) +
+  geom_histogram() +
+  scale_y_log10() +
+  theme_classic() +
+  labs(
+    title = "Distribution of Average Number of Visits to SDC/EC",
+    xlab = "Number of Visits",
+    ylab = "Number of Individuals (log transformed)"
+  )
 
-
-
-
-
+df.flat %>% 
+  group_by(
+    EncounterID
+  ) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  arrange(
+    desc(n)
+  ) %>% 
+  filter(n > 1)
 
 
 # # logistic model ####
