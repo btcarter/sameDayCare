@@ -6,6 +6,7 @@
 # packages
 library(dplyr)
 library(tidyr)
+library(lubridate)
 library(icd) # for reading in ICD10 classifying information and calculating risk scores
 library(ggplot2)
 library(compareGroups)
@@ -30,7 +31,7 @@ ICD <- icd10cm2019 %>%
 
 # ANALYSIS ####
 
-# table 1 ####
+# table 1 for all visits ####
 df.comp <- df.flat %>% 
   mutate(
     return_in_14 = as.factor(return_in_14)
@@ -56,7 +57,37 @@ comp.obj <- compareGroups(
 
 createTable(comp.obj) %>% 
   export2xls(file = file.path(out.dir.path,
-                              "table1.xlsx"))
+                              "table1-encounters.xlsx"))
+
+# table for patients ####
+df.comp <- df.flat %>% 
+  group_by(
+    PersonID
+  ) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  mutate(
+    return_in_14 = as.factor(return_in_14)
+  ) %>% 
+  select(
+    AdmitAge,
+    Marital_Status,
+    Sex,
+    Race,
+    Ethnicity,
+    Religion,
+    return_in_14
+  )
+
+comp.obj <- compareGroups(
+    return_in_14 ~ .,
+    df.comp,
+    max.xlev = 55
+  )
+
+createTable(comp.obj) %>% 
+  export2xls(file = file.path(out.dir.path,
+                              "table1-patients.xlsx"))
 
 
 # most common Priority ICD10
@@ -147,7 +178,7 @@ writexl::write_xlsx(top50,
             path = file.path(out.dir.path,
                              "top50.xlsx"))
 
-# Average number of visits ####
+# plot: average number of visits ####
 df.flat %>% 
   group_by(
     PersonID
@@ -165,20 +196,57 @@ df.flat %>%
     title = "Distribution of Average Number of Visits to SDC/EC",
     xlab = "Number of Visits",
     ylab = "Number of Individuals (log transformed)"
+  ) %>% 
+  ggsave(
+    filename = file.path(out.dir.path,
+                         "sdcDistribution.png")
   )
 
-df.flat %>% 
-  group_by(
-    EncounterID
-  ) %>% 
-  summarise(
-    n = n()
-  ) %>% 
-  arrange(
-    desc(n)
-  ) %>% 
-  filter(n > 1)
+# plot: timeseries ####
 
+df.flat %>% 
+  ggplot(
+    aes(DTS, fill=return_in_14)
+  ) +
+  geom_histogram() +
+  theme_classic() +
+  labs(
+    title = "Visits to SDC/EC Timeseries",
+    x = "Date",
+    ylab = "Total Visits"
+  )
+
+# plot: Month
+df.flat %>% 
+  mutate(
+    Month = month(DTS)
+  ) %>% 
+  ggplot(
+    aes(Month, fill=return_in_14)
+  ) +
+  geom_histogram() +
+  theme_classic() +
+  labs(
+    title = "Visits to SDC/EC Timeseries",
+    x = "Month",
+    ylab = "Total Visits"
+  )
+
+# plot: Weekday
+df.flat %>% 
+  mutate(
+    Wday = wday(DTS)
+  ) %>% 
+  ggplot(
+    aes(Wday, fill=return_in_14)
+  ) +
+  geom_histogram() +
+  theme_classic() +
+  labs(
+    title = "Visits to SDC/EC Timeseries",
+    x = "Week Day",
+    ylab = "Total Visits"
+  )
 
 # # logistic model ####
 # df.flat.model <- df.flat %>% 
