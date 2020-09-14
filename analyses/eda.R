@@ -240,7 +240,7 @@ df.flat %>%
   ggplot(
     aes(Wday, fill=return_in_14)
   ) +
-  geom_histogram() +
+  geom_bar() +
   theme_classic() +
   labs(
     title = "Visits to SDC/EC Timeseries",
