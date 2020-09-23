@@ -1,6 +1,7 @@
 # PREAMBLE
 # Author: Benjamin T. Carter, PhD
-# Objective:
+# Objective:  Explore the data for the SDC project. 
+#             Generate objects to build the descriptive analysis.
 
 # ENVIRONMENT ####
 # packages
@@ -29,7 +30,20 @@ ICD <- icd10cm2019 %>%
     code = as.character(code)
   )
 
+
+# AIMS ####
+# How much traffic are we seeing in SDC/EC?
+# What are the top ICD-10 codes associated with a readmission?
+# Who is coming back?
+# how many times are they coming back?
+# how often are they coming back?
+# why are they coming back?
+
+
+
 # ANALYSIS ####
+
+# Aim 1 what does SDC/EC traffic look like?
 
 # table 1 for all visits ####
 df.comp <- df.flat %>% 
@@ -55,8 +69,9 @@ comp.obj <- compareGroups(
   max.xlev = 55
 )
 
-createTable(comp.obj) %>% 
-  export2xls(file = file.path(out.dir.path,
+comp.obj.table.encounters <- createTable(comp.obj)
+
+comp.obj.table.encounters %>% export2xls(file = file.path(out.dir.path,
                               "table1-encounters.xlsx"))
 
 # table for patients ####
@@ -85,12 +100,13 @@ comp.obj <- compareGroups(
     max.xlev = 55
   )
 
-createTable(comp.obj) %>% 
-  export2xls(file = file.path(out.dir.path,
+comp.obj.table <- createTable(comp.obj)
+
+comp.obj.table <- export2xls(file = file.path(out.dir.path,
                               "table1-patients.xlsx"))
 
 
-# most common Priority ICD10
+# most common Priority ICD10 ####
 df.icd.counts <- df.flat %>% 
   group_by(PriorityICD, return_in_14) %>% 
   summarise(
@@ -117,7 +133,7 @@ df.icd.counts <- df.flat %>%
 
 
 
-# priority ICD-10 with most significant association with readmission
+# priority ICD-10 with most significant association with readmission ####
 df.chi <- df.flat %>% 
   mutate(
     n = 1
@@ -178,14 +194,17 @@ writexl::write_xlsx(top50,
             path = file.path(out.dir.path,
                              "top50.xlsx"))
 
-# plot: average number of visits ####
-df.flat %>% 
+# plot: number of visits to SDC/EC ####
+fliers <- df.flat %>% 
   group_by(
     PersonID
   ) %>% 
   summarise(
     n = n()
   ) %>% 
+  ungroup()
+
+fliers %>% 
   ggplot(
     aes(n)
   ) +
@@ -194,13 +213,26 @@ df.flat %>%
   theme_classic() +
   labs(
     title = "Distribution of Average Number of Visits to SDC/EC",
-    xlab = "Number of Visits",
-    ylab = "Number of Individuals (log transformed)"
+    x = "Number of Visits",
+    y = "Number of Individuals"
   ) %>% 
   ggsave(
     filename = file.path(out.dir.path,
                          "sdcDistribution.png")
   )
+
+fliers %>% 
+  group_by(
+    n
+  ) %>% 
+  summarise(
+    Participants = n()
+  ) %>% 
+  ungroup() %>% 
+  arrange(
+    desc(n)
+  )
+  
 
 # plot: timeseries ####
 
@@ -208,7 +240,7 @@ df.flat %>%
   ggplot(
     aes(DTS, fill=return_in_14)
   ) +
-  geom_histogram() +
+  geom_histogram(bins = 36) +
   theme_classic() +
   labs(
     title = "Visits to SDC/EC Timeseries",
@@ -216,37 +248,6 @@ df.flat %>%
     ylab = "Total Visits"
   )
 
-# plot: Month
-df.flat %>% 
-  mutate(
-    Month = month(DTS)
-  ) %>% 
-  ggplot(
-    aes(Month, fill=return_in_14)
-  ) +
-  geom_histogram() +
-  theme_classic() +
-  labs(
-    title = "Visits to SDC/EC Timeseries",
-    x = "Month",
-    ylab = "Total Visits"
-  )
-
-# plot: Weekday
-df.flat %>% 
-  mutate(
-    Wday = wday(DTS)
-  ) %>% 
-  ggplot(
-    aes(Wday, fill=return_in_14)
-  ) +
-  geom_bar() +
-  theme_classic() +
-  labs(
-    title = "Visits to SDC/EC Timeseries",
-    x = "Week Day",
-    ylab = "Total Visits"
-  )
 
 # # logistic model ####
 # df.flat.model <- df.flat %>% 
