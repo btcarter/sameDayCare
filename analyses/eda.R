@@ -30,22 +30,72 @@ ICD <- icd10cm2019 %>%
     code = as.character(code)
   )
 
-
 # AIMS ####
-# How much traffic are we seeing in SDC/EC?
-# What are the top ICD-10 codes associated with a readmission?
-# Who is coming back?
-# how many times are they coming back?
-# how often are they coming back?
-# why are they coming back?
-
-
+# The aims of this analysis are as follows
+# - How much traffic are we seeing in SDC/EC?
+# - What are the top ICD-10 codes associated with a readmission?
+# - Who returned?
+# - Who returned more than once (frequent fliers)?
+  # - How many times are they coming back?
+  # - How often are they coming back?
+  # - Why are they coming back?
+  # - Where/who are they returning too?
+  # - Which sites are they coming from?
+# - Can we predict return?
 
 # ANALYSIS ####
 
-# Aim 1 what does SDC/EC traffic look like?
+# Aim 1 what does SDC/EC traffic look like? ####
 
-# table 1 for all visits ####
+# plot: number of visits to SDC/EC
+traffic <- df.flat %>% 
+  group_by(
+    PersonID
+  ) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  ungroup()
+
+traffic.plot <- traffic %>% 
+  ggplot(
+    aes(n)
+  ) +
+  geom_histogram() +
+  scale_y_log10() +
+  theme_classic() +
+  labs(
+    title = "Distribution of Number of Visits to SDC/EC",
+    x = "Number of Visits",
+    y = "Number of Individuals"
+  )
+
+traffic.plot %>% 
+  ggsave(
+    filename = file.path(out.dir.path,
+                         "sdcDistribution.png")
+  )
+
+# plot: timeseries
+traffic.tsplot <- df.flat %>% 
+  ggplot(
+    aes(DTS, fill=return_in_14)
+  ) +
+  geom_histogram(bins = 36) +
+  theme_classic() +
+  labs(
+    title = "Visits to SDC/EC Timeseries",
+    x = "Date",
+    ylab = "Total Visits"
+  )
+
+traffic.tsplot %>% 
+  ggsave(
+    filename = file.path(out.dir.path,
+                         "sdcTimeSeries.png")
+  )
+
+# table 1 for all visits
 df.comp <- df.flat %>% 
   mutate(
     return_in_14 = as.factor(return_in_14)
@@ -74,39 +124,8 @@ comp.obj.table.encounters <- createTable(comp.obj)
 comp.obj.table.encounters %>% export2xls(file = file.path(out.dir.path,
                               "table1-encounters.xlsx"))
 
-# table for patients ####
-df.comp <- df.flat %>% 
-  group_by(
-    PersonID
-  ) %>% 
-  slice(1) %>% 
-  ungroup() %>% 
-  mutate(
-    return_in_14 = as.factor(return_in_14)
-  ) %>% 
-  select(
-    AdmitAge,
-    Marital_Status,
-    Sex,
-    Race,
-    Ethnicity,
-    Religion,
-    return_in_14
-  )
-
-comp.obj <- compareGroups(
-    return_in_14 ~ .,
-    df.comp,
-    max.xlev = 55
-  )
-
-comp.obj.table <- createTable(comp.obj)
-
-comp.obj.table <- export2xls(file = file.path(out.dir.path,
-                              "table1-patients.xlsx"))
-
-
-# most common Priority ICD10 ####
+# Aim 2 What are the top ICD-10 codes associated with readmission? ####
+## most common Priority ICD10
 df.icd.counts <- df.flat %>% 
   group_by(PriorityICD, return_in_14) %>% 
   summarise(
@@ -133,7 +152,7 @@ df.icd.counts <- df.flat %>%
 
 
 
-# priority ICD-10 with most significant association with readmission ####
+## priority ICD-10 with most significant association with readmission
 df.chi <- df.flat %>% 
   mutate(
     n = 1
@@ -175,7 +194,7 @@ df.icd.sig <- df.icd.counts %>%
 df.icd.counts <- NULL
 df.chi.results <- NULL
 
-# top 50 ICD-10 codes ####
+## top 50 ICD-10 codes
 top50 <- df.icd.sig %>% 
   arrange(
     desc(Chi2),
@@ -191,82 +210,130 @@ top50 <- df.icd.sig %>%
   )
 
 writexl::write_xlsx(top50,
-            path = file.path(out.dir.path,
-                             "top50.xlsx"))
+                    path = file.path(out.dir.path,
+                                     "top50.xlsx"))
 
-# plot: number of visits to SDC/EC ####
-fliers <- df.flat %>% 
+# Aim 3 Describing patients who returned ####
+
+df.comp <- df.flat %>%
   group_by(
     PersonID
   ) %>% 
   summarise(
-    n = n()
+    `Total Visits` = n(),
+    `Visit Frequency` = n()/3,
+    Returned = if_else(sum(return_in_14) > 0,
+                     TRUE,
+                     FALSE),
+    `Return Count` = sum(return_in_14)
   ) %>% 
-  ungroup()
+  ungroup() %>% 
+  left_join(
+    df.flat,
+    by = "PersonID"
+  ) %>% 
+  group_by(
+    PersonID
+  ) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  mutate(
+    Returned = as.factor(Returned)
+  ) %>% 
+  select(
+    PersonID,
+    `Total Visits`,
+    `Visit Frequency`,
+    `Return Count`,
+    AdmitAge,
+    Marital_Status,
+    Sex,
+    Race,
+    Ethnicity,
+    Religion,
+    Returned
+  )
 
-fliers %>% 
+## plot of visit frequency
+df.comp %>% 
   ggplot(
-    aes(n)
-  ) +
-  geom_histogram() +
+    aes(`Visit Frequency`, fill = Sex)
+    ) +
+  geom_histogram(position = "stack") +
   scale_y_log10() +
   theme_classic() +
   labs(
-    title = "Distribution of Average Number of Visits to SDC/EC",
-    x = "Number of Visits",
-    y = "Number of Individuals"
-  ) %>% 
-  ggsave(
-    filename = file.path(out.dir.path,
-                         "sdcDistribution.png")
+    title = "Sex and Visit Frequency",
+    y = "Number of Patients"
+    )
+
+## table for patient demographics
+comp.obj <- compareGroups(
+  Returned ~ . - PersonID,
+    df.comp,
+    max.xlev = 55
   )
 
-fliers %>% 
-  group_by(
-    n
-  ) %>% 
-  summarise(
-    Participants = n()
-  ) %>% 
-  ungroup() %>% 
+comp.obj.table.patients <- createTable(comp.obj)
+
+comp.obj.table.patients
+
+comp.obj.table.patients %>% export2xls(file = file.path(out.dir.path,
+                              "table1-patients.xlsx"))
+
+# Aim 4 Describing frequent fliers ####
+# how to identify?
+a <- round(nrow(df.comp)*0.05)
+
+df.comp.top5percent <- df.comp %>% 
   arrange(
-    desc(n)
+    desc(
+      `Total Visits`
+    )
+  ) %>% 
+  head(a)
+
+df.comp.5orMore <- df.comp %>% 
+  filter(
+    `Total Visits` >= 5
   )
-  
 
-# plot: timeseries ####
+ff.comp <- compareGroups(
+  Returned ~ . -PersonID,
+  df.comp.5orMore, max.xlev = 55)
 
-df.flat %>% 
+ff.comp.table <- createTable(ff.comp)
+ff.comp.table
+ff.comp.table %>% export2xls(file = file.path(out.dir.path,
+                                              "table-frequentFlier.xlsx"))
+
+df.comp %>% 
   ggplot(
-    aes(DTS, fill=return_in_14)
+    aes(`Return Count`,`Total Visits`)
   ) +
-  geom_histogram(bins = 36) +
-  theme_classic() +
-  labs(
-    title = "Visits to SDC/EC Timeseries",
-    x = "Date",
-    ylab = "Total Visits"
+  geom_jitter() +
+  geom_smooth(method = "lm")
+
+
+# Aim N: Can we predict a return? ####
+## logistic model
+df.flat.model <- df.flat %>%
+  select(
+    -c(DTS,
+       ICD_block,
+       ICD_code,
+       PersonID,
+       DiagnosisPrioritySEQ,
+       Building,
+       AdmitType,
+       EncounterType,
+       RespiratoryFailure,
+       DiagnosisDSC)
   )
 
+fmla <- "return_in_14 ~ ."
+sdc.model <- glm(fmla,
+                 df.flat.model,
+                 family = "binomial"
+                 )
 
-# # logistic model ####
-# df.flat.model <- df.flat %>% 
-#   select(
-#     -c(DTS, 
-#        ICD_block, 
-#        ICD_code, 
-#        PersonID, 
-#        DiagnosisPrioritySEQ, 
-#        Building, 
-#        AdmitType, 
-#        EncounterType, 
-#        RespiratoryFailure,
-#        DiagnosisDSC)
-#   )
-# 
-# fmla <- "return_in_14 ~ ."
-# sdc.model <- glm(fmla, 
-#                  df.flat.model,
-#                  family = "binomial"
-#                  )
-# 
