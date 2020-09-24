@@ -35,6 +35,7 @@ ICD <- icd10cm2019 %>%
 # - How much traffic are we seeing in SDC/EC?
 # - What are the top ICD-10 codes associated with a readmission?
 # - Who returned?
+  # - What relationship does this have with our predictors?
 # - Who returned more than once (frequent fliers)?
   # - How many times are they coming back?
   # - How often are they coming back?
@@ -45,7 +46,7 @@ ICD <- icd10cm2019 %>%
 
 # ANALYSIS ####
 
-# Aim 1 what does SDC/EC traffic look like? ####
+# Aim 1 What does SDC/EC traffic look like? ####
 
 # plot: number of visits to SDC/EC
 traffic <- df.flat %>% 
@@ -104,6 +105,7 @@ df.comp <- df.flat %>%
     AdmitAge,
     Marital_Status,
     Sex,
+    Building,
     NurseUnit,
     AdmitType,
     DiagnosisType,
@@ -123,6 +125,96 @@ comp.obj.table.encounters <- createTable(comp.obj)
 
 comp.obj.table.encounters %>% export2xls(file = file.path(out.dir.path,
                               "table1-encounters.xlsx"))
+
+## How are individual predictors related to returning?
+
+cat_vars <- c("Ethnicity",
+              "Language",
+              "Race",
+              "Marital_Status",
+              "Sex",
+              "Religion",
+              "Building",
+              "NurseUnit",
+              "AdmitType",
+              "EncounterType",
+              "ZipCode",
+              "DiagnosisDSC")
+
+CatChi <- data.frame(
+  variable = as.character(),
+  Xsq = as.numeric(),
+  df = as.numeric(),
+  p = as.numeric(),
+  row.names = NULL
+)
+
+CatChiList <- list()
+
+for (cat in cat_vars){
+  res <- chisq.test(
+    df.flat[[cat]],
+    df.flat$return_in_14
+  )
+  
+  if (res$p.value < 0.05){
+    res.df <- data.frame(
+      variable = cat,
+      Xsq = res$statistic,
+      df = res$parameter,
+      p = res$p.value,
+      row.names = NULL
+    )
+    
+    CatChi <- rbind(CatChi, res.df)
+    
+    CatChiList[[cat]] <- res
+    
+    CatChiList[[paste(cat,"_res_plot", sep = "")]] <- data.frame(
+      res$residuals
+    ) %>% 
+      ggplot(
+        aes(
+          df.flat.return_in_14,
+          df.flat..cat..,
+          fill = Freq,
+        )
+      ) +
+      geom_tile(alpha = 0.7) +
+      theme_classic() +
+      scale_fill_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
+      labs(
+        title = paste(cat, "Residual Plot"),
+        y = cat,
+        x = "Returned in 14 days",
+        fill = "Residual"
+      )
+    
+    
+    CatChiList[[paste(cat,"_contr_plot", sep = "")]] <- data.frame(
+      100*res$residuals^2/res$statistic
+    ) %>% 
+      ggplot(
+        aes(
+          df.flat.return_in_14,
+          df.flat..cat..,
+          fill = Freq
+        )
+      ) +
+      geom_tile(alpha = 0.7) +
+      theme_classic() +
+      scale_fill_gradient(high = "#ff0000") +
+      labs(
+        title = paste(cat, "Contribution Plot"),
+        y = cat,
+        x = "Returned in 14 days",
+        fill = "Contribution"
+      )
+  }
+  
+  # need to include individual tests?
+  
+}
 
 # Aim 2 What are the top ICD-10 codes associated with readmission? ####
 ## most common Priority ICD10
@@ -259,13 +351,26 @@ df.comp %>%
   ggplot(
     aes(`Visit Frequency`, fill = Sex)
     ) +
-  geom_histogram(position = "stack") +
+  geom_histogram() +
   scale_y_log10() +
   theme_classic() +
   labs(
     title = "Sex and Visit Frequency",
-    y = "Number of Patients"
+    y = "Log of Patient Count"
     )
+
+## plot of total visits and sex
+df.comp %>% 
+  ggplot(
+    aes(`Total Visits`, fill = Sex)
+  ) +
+  geom_histogram(binwidth = 1) +
+  scale_y_log10() +
+  theme_classic() +
+  labs(
+    title = "Sex and Total Visits",
+    y = "Log of Patient Count"
+  )
 
 ## table for patient demographics
 comp.obj <- compareGroups(
@@ -280,6 +385,9 @@ comp.obj.table.patients
 
 comp.obj.table.patients %>% export2xls(file = file.path(out.dir.path,
                               "table1-patients.xlsx"))
+
+
+
 
 # Aim 4 Describing frequent fliers ####
 # how to identify?
