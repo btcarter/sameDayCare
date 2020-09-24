@@ -57,7 +57,7 @@ pb <- progress_bar$new(
   format = "  Running LDA [:bar] :percent eta: :eta",
   total = 20, clear = FALSE)
 
-for (i in seq(1,1000)){
+for (i in seq(2,1000)){
   
   pb$tick()
   
