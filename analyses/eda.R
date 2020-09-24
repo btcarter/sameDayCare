@@ -138,6 +138,7 @@ cat_vars <- c("Ethnicity",
               "NurseUnit",
               "AdmitType",
               "EncounterType",
+              "RespiratoryFailure",
               "ZipCode",
               "DiagnosisDSC")
 
@@ -170,50 +171,47 @@ for (cat in cat_vars){
     
     CatChiList[[cat]] <- res
     
-    CatChiList[[paste(cat,"_res_plot", sep = "")]] <- data.frame(
-      res$residuals
-    ) %>% 
+    residuals <- data.frame(res$residuals) %>% 
+      rename(
+        Residual = Freq
+      )
+    
+    Zscores <- data.frame(100*res$residuals^2/res$statistic) %>% 
+      rename(
+        Z = Freq
+      ) %>% 
+      mutate(
+        Significant = if_else(
+          abs(Z) > 1.96,
+          TRUE,
+          FALSE
+        )
+      )
+    
+    residuals <- residuals %>% 
+      left_join(Zscores)
+    
+    CatChiList[[paste(cat,"_plot", sep = "")]] <- residuals %>% 
       ggplot(
         aes(
           df.flat.return_in_14,
           df.flat..cat..,
-          fill = Freq,
+          color = Z,
+          shape = Significant,
+          size = Residual
         )
       ) +
-      geom_tile(alpha = 0.7) +
+      geom_point(alpha = 0.7) +
       theme_classic() +
-      scale_fill_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
+      scale_color_gradient(high = "#ff0000") +
       labs(
-        title = paste(cat, "Residual Plot"),
+        title = paste(cat, "Significance Plot"),
         y = cat,
-        x = "Returned in 14 days",
-        fill = "Residual"
+        x = "Returned in 14 days"
       )
-    
-    
-    CatChiList[[paste(cat,"_contr_plot", sep = "")]] <- data.frame(
-      100*res$residuals^2/res$statistic
-    ) %>% 
-      ggplot(
-        aes(
-          df.flat.return_in_14,
-          df.flat..cat..,
-          fill = Freq
-        )
-      ) +
-      geom_tile(alpha = 0.7) +
-      theme_classic() +
-      scale_fill_gradient(high = "#ff0000") +
-      labs(
-        title = paste(cat, "Contribution Plot"),
-        y = cat,
-        x = "Returned in 14 days",
-        fill = "Contribution"
-      )
+
   }
-  
-  # need to include individual tests?
-  
+
 }
 
 # Aim 2 What are the top ICD-10 codes associated with readmission? ####
