@@ -57,7 +57,7 @@ pb <- progress_bar$new(
   format = "  Running LDA [:bar] :percent eta: :eta",
   total = 20, clear = FALSE)
 
-for (i in seq(1,20)*5){
+for (i in seq(1,1000)){
   
   pb$tick()
   
@@ -82,11 +82,11 @@ for (i in seq(1,20)*5){
   
   name <- paste("run_", i, sep = "")
   
-  lda.list[[name]] <- list(
-    "lda" = text.lda,
-    "betas" = text.betas,
-    "gammas" = text.gammas
-  )
+  # lda.list[[name]] <- list(
+  #   "lda" = text.lda,
+  #   "betas" = text.betas,
+  #   "gammas" = text.gammas
+  # )
   
   lda.list$perplexity <- data.frame("k" = integer(),
                                     "perplexity" = numeric())
@@ -110,5 +110,5 @@ perp.plot
 dev.off()
 
 
-saveRDS(lda.list,
-        file = file.path(out.dir.path, "ldaList.rds"))
+# saveRDS(lda.list,
+#         file = file.path(out.dir.path, "ldaList.rds"))
