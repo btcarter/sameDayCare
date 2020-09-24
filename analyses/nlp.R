@@ -54,8 +54,8 @@ text.matrix <- df.nlp %>%
 lda.list <- list()
 
 pb <- progress_bar$new(
-  format = "  Running LDA [:bar] :percent eta: :eta",
-  total = 20, clear = FALSE)
+  format = "  Running LDA [:bar] :percent eta: :eta\n Elapsed :elapsedfull",
+  total = 999, clear = FALSE)
 
 for (i in seq(2,1000)){
   
