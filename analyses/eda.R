@@ -196,14 +196,14 @@ for (cat in cat_vars){
         aes(
           df.flat.return_in_14,
           df.flat..cat..,
-          color = Z,
+          size = Z,
           shape = Significant,
-          size = Residual
+          color = Residual
         )
       ) +
       geom_point(alpha = 0.7) +
       theme_classic() +
-      scale_color_gradient(high = "#ff0000") +
+      scale_color_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
       labs(
         title = paste(cat, "Significance Plot"),
         y = cat,
