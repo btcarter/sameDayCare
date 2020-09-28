@@ -207,7 +207,9 @@ for (cat in cat_vars){
       labs(
         title = paste(cat, "Significance Plot"),
         y = cat,
-        x = "Returned in 14 days"
+        x = "Returned in 14 days",
+        size = "St. Residual",
+        shape = "Significance, p < 0.05"
       )
 
   }
@@ -344,14 +346,35 @@ df.comp <- df.flat %>%
     Returned
   )
 
+
+## plot of age and total visits
+df.comp %>% 
+  ggplot(
+    aes(
+      `AdmitAge`,
+      `Total Visits`,
+      color = Returned
+    )
+  ) +
+  geom_point(position = "jitter", alpha = 0.2) +
+  geom_smooth(method = lm) + 
+  scale_y_log10() +
+  theme_classic() +
+  labs(
+    y = "Log of Total Visits",
+    x = "Age",
+    color = "Return in 14"
+  )
+
 ## plot of visit frequency
 df.comp %>% 
   ggplot(
-    aes(`Visit Frequency`, fill = Sex)
+    aes(`Visit Frequency`, fill = Returned)
     ) +
   geom_histogram() +
   scale_y_log10() +
   theme_classic() +
+  facet_grid(Sex ~ .) +
   labs(
     title = "Sex and Visit Frequency",
     y = "Log of Patient Count"
@@ -360,11 +383,12 @@ df.comp %>%
 ## plot of total visits and sex
 df.comp %>% 
   ggplot(
-    aes(`Total Visits`, fill = Sex)
+    aes(`Total Visits`, fill = Returned)
   ) +
   geom_histogram(binwidth = 1) +
   scale_y_log10() +
   theme_classic() +
+  facet_grid(Sex ~ .) +
   labs(
     title = "Sex and Total Visits",
     y = "Log of Patient Count"
@@ -390,14 +414,6 @@ comp.obj.table.patients %>% export2xls(file = file.path(out.dir.path,
 # Aim 4 Describing frequent fliers ####
 # how to identify?
 a <- round(nrow(df.comp)*0.05)
-
-df.comp.top5percent <- df.comp %>% 
-  arrange(
-    desc(
-      `Total Visits`
-    )
-  ) %>% 
-  head(a)
 
 df.comp.5orMore <- df.comp %>% 
   filter(
