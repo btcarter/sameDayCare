@@ -439,9 +439,19 @@ df.comp %>%
 
 # Aim N: Can we predict a return? ####
 ## logistic model
+
 df.flat.model <- df.flat %>%
+  mutate(
+    top50ICD = if_else(
+      PriorityICD %in% top50$PriorityICD,
+      TRUE,
+      FALSE
+    )
+  ) %>% 
   select(
     -c(DTS,
+       EncounterID,
+       PriorityICD,
        ICD_block,
        ICD_code,
        PersonID,
@@ -450,7 +460,9 @@ df.flat.model <- df.flat %>%
        AdmitType,
        EncounterType,
        RespiratoryFailure,
-       DiagnosisDSC)
+       DiagnosisDSC,
+       ReasonForVisit
+       )
   )
 
 fmla <- "return_in_14 ~ ."
@@ -459,3 +471,60 @@ sdc.model <- glm(fmla,
                  family = "binomial"
                  )
 
+# Zip Code was not significant, neither was religious sect, language,
+# or race (maybe due to race being captured in Ethnicity). These are now 
+# deleted or binarized in the following model. 
+# The following were binarized:
+# Religion (stated vs. not). 
+# Language (English vs. not)
+# Race (Caucasian vs. not).
+
+df.flat.model <- df.flat %>%
+  mutate(
+    top50ICD = if_else(
+      PriorityICD %in% top50$PriorityICD,
+      TRUE,
+      FALSE
+    ),
+    Caucasian = if_else(
+      Race == "Caucasian/White",
+      TRUE,
+      FALSE
+    ),
+    Religious = if_else(
+      Religion %in% c(NA, "Unknown"),
+      FALSE,
+      TRUE
+    ),
+    English = if_else(
+      Language == "English",
+      TRUE,
+      FALSE
+    )
+  ) %>% 
+  select(
+    -c(DTS,
+       Race,
+       Religion,
+       Language,
+       EncounterID,
+       PriorityICD,
+       ICD_block,
+       ICD_code,
+       PersonID,
+       DiagnosisPrioritySEQ,
+       Building,
+       AdmitType,
+       EncounterType,
+       RespiratoryFailure,
+       DiagnosisDSC,
+       ReasonForVisit,
+       ZipCode
+    )
+  )
+
+fmla <- "return_in_14 ~ ."
+sdc.model2 <- glm(fmla,
+                 df.flat.model,
+                 family = "binomial"
+)
