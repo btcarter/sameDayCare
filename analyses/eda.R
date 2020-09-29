@@ -194,8 +194,8 @@ for (cat in cat_vars){
     CatChiList[[paste(cat,"_plot", sep = "")]] <- residuals %>% 
       ggplot(
         aes(
-          df.flat.return_in_14,
           df.flat..cat..,
+          df.flat.return_in_14,
           size = Z,
           shape = Significant,
           color = Residual
@@ -412,17 +412,21 @@ comp.obj.table.patients %>% export2xls(file = file.path(out.dir.path,
 
 
 # Aim 4 Describing frequent fliers ####
-# how to identify?
+## how to identify?
 a <- round(nrow(df.comp)*0.05)
 
-df.comp.5orMore <- df.comp %>% 
-  filter(
-    `Total Visits` >= 5
+df.comp <- df.comp %>% 
+  mutate(
+    ff = if_else(
+      `Total Visits` >= 5,
+      "TRUE",
+      "FALSE"
+    )
   )
 
 ff.comp <- compareGroups(
-  Returned ~ . -PersonID,
-  df.comp.5orMore, max.xlev = 55)
+  ff ~ . -PersonID,
+  df.comp, max.xlev = 55)
 
 ff.comp.table <- createTable(ff.comp)
 ff.comp.table
@@ -436,6 +440,89 @@ df.comp %>%
   geom_jitter() +
   geom_smooth(method = "lm")
 
+## running chi-square on results
+cat_vars <- c("Ethnicity",
+              "Language",
+              "Race",
+              "Marital_Status",
+              "Sex",
+              "Religion"
+              )
+
+CatChi <- data.frame(
+  variable = as.character(),
+  Xsq = as.numeric(),
+  df = as.numeric(),
+  p = as.numeric(),
+  row.names = NULL
+)
+
+CatChiList <- list()
+
+for (cat in cat_vars){
+  res <- chisq.test(
+    df.comp[[cat]],
+    df.comp$ff
+  )
+  
+  if (res$p.value < 0.05){
+    res.df <- data.frame(
+      variable = cat,
+      Xsq = res$statistic,
+      df = res$parameter,
+      p = res$p.value,
+      row.names = NULL
+    )
+    
+    CatChi <- rbind(CatChi, res.df)
+    
+    CatChiList[[cat]] <- res
+    
+    residuals <- data.frame(res$residuals) %>% 
+      rename(
+        Residual = Freq
+      )
+    
+    Zscores <- data.frame(100*res$residuals^2/res$statistic) %>% 
+      rename(
+        Z = Freq
+      ) %>% 
+      mutate(
+        Significant = if_else(
+          abs(Z) > 1.96,
+          TRUE,
+          FALSE
+        )
+      )
+    
+    residuals <- residuals %>% 
+      left_join(Zscores)
+    
+    CatChiList[[paste(cat,"_plot", sep = "")]] <- residuals %>% 
+      ggplot(
+        aes(
+          df.comp..cat..,
+          df.comp.ff,
+          size = Z,
+          shape = Significant,
+          color = Residual
+        )
+      ) +
+      geom_point(alpha = 0.7) +
+      theme_classic() +
+      scale_color_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
+      labs(
+        title = paste(cat, "Significance Plot"),
+        y = cat,
+        x = "Frequeny Flyer",
+        size = "St. Residual",
+        shape = "Significance, p < 0.05"
+      )
+    
+  }
+  
+}
+
 
 # Aim N: Can we predict a return? ####
 ## logistic model
@@ -446,10 +533,16 @@ df.flat.model <- df.flat %>%
       PriorityICD %in% top50$PriorityICD,
       TRUE,
       FALSE
+    ),
+    frqtflyer = if_else(
+      PersonID %in% df.comp$PersonID,
+      TRUE,
+      FALSE
     )
   ) %>% 
   select(
     -c(DTS,
+       Language,
        EncounterID,
        PriorityICD,
        ICD_block,
@@ -470,6 +563,8 @@ sdc.model <- glm(fmla,
                  df.flat.model,
                  family = "binomial"
                  )
+
+df.flat.model$predicted <- predict(sdc.model, df.flat.model)
 
 # Zip Code was not significant, neither was religious sect, language,
 # or race (maybe due to race being captured in Ethnicity). These are now 
@@ -528,3 +623,14 @@ sdc.model2 <- glm(fmla,
                  df.flat.model,
                  family = "binomial"
 )
+
+df.flat.model$predicted <- predict(sdc.model2,df.flat.model)
+
+ggplot(df.flat.model,
+       aes(return_in_14,predicted, color = top50ICD)
+       ) +
+  geom_jitter() +
+  facet_wrap(Sex ~ .) +
+  theme_classic()
+
+
