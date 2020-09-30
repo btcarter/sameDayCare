@@ -1,0 +1,449 @@
+---
+title: "SDC/EC Rating Project"
+author: "Benjamin T. Carter, PhD"
+date: "Generated: `r Sys.time()`"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE)
+```
+
+
+# Problem
+- SDC/EC exists to reduce congestion in the ER and clinics.
+- Provides a place where individuals with uncomplicated medical problems can seek quick and covenient treatment.
+- This mission is confounded when patients return to a BC facility because their healthcare problems were not adequately addressed.
+- Can we predict which patients are most likely to return to a BC facility after SDC/EC?
+- Can we prevent this return?
+
+# Hypothesis
+1. This is the first
+2. This is the second
+
+# Aims
+1. Identify patient encounters followed by a return within 2 weeks.
+2. Perform a descriptive analysis of these encounters.
+3. Develop a model to quantify the effect of pertinent variables.
+4. Develop an appropriate model to predict return.
+5. Report results in manuscript.
+5. Deploy model in the EHR in a medical trial.
+6. Evaluate and report deployment.
+7. Revise model and redeploy.
+7. Report results in manuscript.
+
+# Methods
+- Encounters ID'd by [SQL query](https://github.com/btcarter/sameDayCare/blob/master/analyses/2019_query.sql) in SSMS.
+- Exported to CSV
+- Flattened and return variable created by [R](https://github.com/btcarter/sameDayCare/blob/master/analyses/preprocessing.R)
+- Exploratory topic modeling on Reason for Visit (on-going) in [R via BAT](https://github.com/btcarter/sameDayCare/blob/master/analyses/nlp.R).
+- Descriptive Analysis (v0.1) with logistic model in [R](https://github.com/btcarter/sameDayCare/blob/master/analyses/eda.R).
+
+# Descriptive Analysis
+## Aims
+- How much traffic are we seeing in SDC/EC?
+- What are the top ICD-10 codes associated with a readmission?
+- Who returned?
+- What relationship does this have with our predictors?
+- Who returned more than once (frequent fliers)?
+- How many times are they coming back?
+- How often are they coming back?
+- Why are they coming back?
+- Where/who are they returning too?
+- Which sites are they coming from?
+- Can we predict return?
+
+```{r environment}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(icd) # for reading in ICD10 classifying information and calculating risk scores
+library(ggplot2)
+library(compareGroups)
+
+# paths
+data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
+                           "CSI & David Hedges - Same Day Care Project", "data")
+
+out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
+                          "CSI & David Hedges - Same Day Care Project", "results")
+
+# data
+
+df.flat.name <- file.path(data.dir.path, "sdc.flat.xlsx")
+
+df.flat <- readxl::read_xlsx(df.flat.name)
+
+ICD <- icd10cm2019 %>% 
+  mutate(
+    code = as.character(code)
+  )
+
+```
+
+## SDC/EC Patients
+
+Overall, the population is not terribly diverse. The0 most common patient would be a WASP female walking into the Billings Downtown SDC in the fall. Some interesting trends are present though. Some refinement of variables is needed (e.g. zipcode for example). This may also reflect a need to change the methodology used by the preprocessing script (i.e. using a pivot to long rather than breaking down the variables into tables and rejoining them).
+
+```{r table1}
+
+df.comp <- df.flat %>% 
+  mutate(
+    return_in_14 = as.factor(return_in_14)
+  ) %>% 
+  select(
+    AdmitAge,
+    Marital_Status,
+    Sex,
+    Building,
+    NurseUnit,
+    AdmitType,
+    DiagnosisType,
+    Race,
+    Ethnicity,
+    Religion,
+    return_in_14
+  )
+
+comp.obj <- compareGroups(
+  return_in_14 ~ .,
+  df.comp,
+  max.xlev = 55
+)
+
+createTable(comp.obj, show.p.overall = FALSE, show.all = TRUE) %>% export2md(caption = "Descriptive table for demographic variables for all enounters, separated by whether the encounter was followed by a readmission within fourteen days (TRUE) or not (FALSE).")
+```
+
+```{r timeseries}
+
+df.flat %>% 
+  ggplot(
+    aes(DTS, fill=return_in_14)
+  ) +
+  geom_histogram(bins = 36) +
+  theme_classic() +
+  labs(
+    title = "Visits to SDC/EC Timeseries",
+    x = "Date",
+    y = "Total Visits",
+    fill = "Return with 14 days",
+    caption = "This graph depicts all the encounters over the period of interest."
+  )
+
+```
+
+
+```{r visitsPerPt}
+# plot: number of visits to SDC/EC
+traffic <- df.flat %>% 
+  group_by(
+    PersonID
+  ) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  ungroup()
+
+traffic %>% 
+  ggplot(
+    aes(n)
+  ) +
+  geom_histogram(binwidth = 1) +
+  scale_y_log10() +
+  theme_classic() +
+  labs(
+    title = "Distribution of Number of Visits to SDC/EC",
+    x = "Number of Visits",
+    y = "Log10 of Number of Individuals",
+    caption = "This depicts the number of individuals making a specified number of visits to SDC/EC during the years 2017-2019."
+  )
+
+```
+
+```{r frqtFlyers}
+ff <- df.flat %>%
+  group_by(
+    PersonID
+  ) %>% 
+  summarise(
+    `Total Visits` = n(),
+    `Visit Frequency` = n()/3
+  ) %>% 
+  ungroup() %>% 
+  right_join(
+    df.flat,
+    by = c("PersonID" = "PersonID")
+  ) %>% 
+  mutate(
+    return_in_14 = as.character(return_in_14)
+  ) %>% 
+  mutate(
+    ff = if_else(
+      `Total Visits` >= 5,
+      "Frequent flier",
+      "Infrequent flier"
+    )
+  )
+
+ff.comp <- compareGroups(ff ~ . -PersonID-EncounterID-DTS-DiagnosisDSC-PriorityICD-ICD_block-ICD_code-DiagnosisPrioritySEQ,
+                         ff,
+                         max.xlev = 55)
+
+ff.comp %>% createTable(show.all = TRUE, show.p.overall = FALSE) %>% export2md()
+
+```
+
+
+## Demographic factors | What seems to have a sorting effect?
+
+```{r chiOfCategoricals}
+
+cat_vars <- c("Ethnicity",
+              "Language",
+              "Race",
+              "Marital_Status",
+              "Sex",
+              "Religion",
+              "Building",
+              "NurseUnit",
+              "AdmitType",
+              "EncounterType",
+              "ZipCode",
+              "ff")
+
+CatChi <- data.frame(
+  variable = as.character(),
+  Xsq = as.numeric(),
+  df = as.numeric(),
+  p = as.numeric(),
+  row.names = NULL
+)
+
+CatChiList <- list()
+
+for (cat in cat_vars){
+  res <- chisq.test(
+    ff[[cat]],
+    ff$return_in_14
+  )
+  
+  if (res$p.value < 0.05){
+    res.df <- data.frame(
+      variable = cat,
+      Xsq = res$statistic,
+      df = res$parameter,
+      p = res$p.value,
+      row.names = NULL
+    )
+    
+    CatChi <- rbind(CatChi, res.df)
+    
+    CatChiList[[cat]] <- res
+    
+    residuals <- data.frame(res$residuals) %>% 
+      rename(
+        Residual = Freq
+      )
+    
+    Zscores <- data.frame(100*res$residuals^2/res$statistic) %>% 
+      rename(
+        Z = Freq
+      ) %>% 
+      mutate(
+        Significant = if_else(
+          abs(Z) > 1.96,
+          TRUE,
+          FALSE
+        )
+      )
+    
+    residuals <- residuals %>% 
+      left_join(Zscores)
+    
+    CatChiList[[paste(cat,"_plot", sep = "")]] <- residuals %>% 
+      ggplot(
+        aes(
+          ff..cat..,
+          ff.return_in_14,
+          size = Z,
+          shape = Significant,
+          color = Residual
+        )
+      ) +
+      geom_point(alpha = 0.7) +
+      theme_classic() +
+      scale_color_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
+      labs(
+        title = paste(cat, "Significance Plot"),
+        y = "Returned in 14 days",
+        x = cat,
+        size = "St. Residual",
+        shape = "Significance, p < 0.05"
+      ) + 
+      theme(
+        axis.text.x = element_text(angle = 90)
+      )
+
+  }
+
+}
+
+print(CatChiList)
+
+```
+
+## ICD-10 Codes
+
+```{r icd10}
+## most common Priority ICD10
+df.icd.counts <- df.flat %>% 
+  group_by(PriorityICD, return_in_14) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  ungroup() %>% 
+  arrange(
+    desc(return_in_14),
+    desc(n)
+  ) %>% 
+  pivot_wider(
+    names_from = return_in_14,
+    values_from = n,
+    values_fill = 0
+  ) %>% 
+  mutate(
+    ratio = `TRUE`/`FALSE`,
+    percentage = `TRUE`/(`FALSE` + `TRUE`)
+  ) %>% 
+  arrange(
+    desc(percentage),
+    desc(`TRUE`)
+  )
+
+## priority ICD-10 with most significant association with readmission
+df.chi <- df.flat %>% 
+  mutate(
+    n = 1
+  ) %>% 
+  pivot_wider(
+    names_from = PriorityICD,
+    values_from = n,
+    values_fill = 0
+  )
+
+df.chi.results <- data.frame(ICD = as.character(),
+                             Chi2 = as.numeric(),
+                             p = as.numeric())
+
+for (i in seq(24, length(colnames(df.chi)))){
+  chiTest <- chisq.test(
+    df.chi$return_in_14,
+    df.chi[[i]]
+  )
+  
+  a <- colnames(df.chi)[i]
+  
+  res <- data.frame(ICD = a,
+                    Chi2 = chiTest$statistic,
+                    p = chiTest$p.value)
+  
+  df.chi.results <- rbind(df.chi.results, res)
+}
+
+row.names(df.chi.results) <- NULL
+
+df.icd.sig <- df.icd.counts %>% 
+  left_join(
+    df.chi.results,
+    by = c("PriorityICD" = "ICD")
+  )
+
+
+df.icd.counts <- NULL
+df.chi.results <- NULL
+
+## top 50 ICD-10 codes
+top50 <- df.icd.sig %>% 
+  arrange(
+    desc(Chi2),
+    p
+  ) %>% 
+  head(50) %>% 
+  left_join(
+    ICD[c(1,3,6:8)],
+    by = c("PriorityICD" = "code")
+  ) %>% 
+  arrange(
+    desc(ratio)
+  )
+
+top50
+
+```
+
+## Logistic Model | Quantifying Effect Size
+
+```{r logisticModel}
+
+df.flat.model <- ff %>%
+  mutate(
+    top50ICD = if_else(
+      PriorityICD %in% top50$PriorityICD,
+      TRUE,
+      FALSE
+    )
+  ) %>% 
+  select(
+    -c(DTS,
+       Language,
+       EncounterID,
+       PriorityICD,
+       ICD_block,
+       ICD_code,
+       PersonID,
+       DiagnosisPrioritySEQ,
+       Building,
+       AdmitType,
+       EncounterType,
+       RespiratoryFailure,
+       DiagnosisDSC,
+       ReasonForVisit
+       )
+  ) %>% 
+  mutate(
+    return_in_14 = as.logical(return_in_14)
+  )
+
+fmla <- "return_in_14 ~ ."
+sdc.model <- glm(fmla,
+                 df.flat.model,
+                 family = "binomial"
+                 )
+sdc.model.summary <- summary(sdc.model)
+
+as.data.frame(sdc.model.summary$coefficients) %>% 
+  arrange(
+    `Pr(>|z|)`
+  )
+
+```
+
+
+
+
+
+
+# Next Steps
+- Add in vital signs
+- Consider adding previous LOS, time since last encounter.
+- Consider comparison against all other primary care visits. E.g. Is there a difference in the number of single individuals accessing care between PCP's and SDC?
+- Consider using this as a case study for cleaning up how data is entered? e.g. What/where is *Same Day Care* Nurse Unit?
+
+
+# Future steps
+- Deployment in medical reports
+- Blinded trials
