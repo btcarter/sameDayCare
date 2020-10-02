@@ -147,7 +147,10 @@ zipcode AS (
 SELECT
   DISTINCT NewPersonID AS PersonID
   ,NewEncounterID AS EncounterID
-  ,NewPersonHomeAddressZipcodeNBR AS Zip
+  ,NewPersonHomeAddressStreetNM AS hm_street
+  ,NewPersonHomeAddressCityNM AS hm_city
+  ,NewPersonHomeAddressStateNM AS hm_state
+  ,NewPersonHomeAddressZipcodeNBR AS hm_Zip
 FROM
   Cerner.Person.ManagementTransaction
  WHERE NewEncounterID IN (SELECT DISTINCT
@@ -160,7 +163,7 @@ FROM
 )
 
 -- Now tie them all together
-
+-- Can I add LOS and vitals and other stuff?
 SELECT DISTINCT
   day.BeginDTS AS DTS
   ,day.PersonID AS PersonID
@@ -174,6 +177,9 @@ SELECT DISTINCT
   ,person.Marital_Status AS Marital_Status
   ,person.Sex AS Sex
   ,person.Religion AS Religion
+  ,zipcpde.hm_street AS hm_street
+  ,zipcode.hm_city AS hm_city
+  ,sipcode.hm_state AS hm_state
   ,zipcode.zip AS Person_ZipCode
   ,encounter.BuildingLocationCVDSC AS Building
   ,encounter.NurseUnitLocationCVDSC AS NurseUnit
@@ -191,6 +197,7 @@ FROM
   LEFT JOIN day ON sdcPatients.PersonID = day.PersonID
   LEFT JOIN person ON day.PersonID = person.PersonID
   LEFT JOIN zipcode ON day.PersonID = zipcode.PersonID
+  AND day.EncounterID = zipcode.EncounterID
   LEFT JOIN encounter ON day.EncounterID = encounter.EncounterID
   LEFT JOIN d1 ON day.EncounterID = d1.EncounterID
 	AND day.PersonID = d1.PersonID
