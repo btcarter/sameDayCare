@@ -439,9 +439,13 @@ as.data.frame(sdc.model.summary$coefficients) %>%
 
 # Next Steps
 - Add in vital signs
-- Consider adding previous LOS, time since last encounter.
+- Consider adding previous LOS, days since last encounter.
 - Consider comparison against all other primary care visits. E.g. Is there a difference in the number of single individuals accessing care between PCP's and SDC?
 - Consider using this as a case study for cleaning up how data is entered? e.g. What/where is *Same Day Care* Nurse Unit?
+- Consider doing a PCA to examine latent variables and correlations.
+- Add SES by street address
+- move some variable creation into preprocessing.
+- look for latent variables using PCA
 
 
 # Future steps
