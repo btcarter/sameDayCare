@@ -147,10 +147,10 @@ zipcode AS (
 SELECT
   DISTINCT NewPersonID AS PersonID
   ,NewEncounterID AS EncounterID
-  ,NewPersonHomeAddressStreetNM AS hm_street
-  ,NewPersonHomeAddressCityNM AS hm_city
-  ,NewPersonHomeAddressStateNM AS hm_state
-  ,NewPersonHomeAddressZipcodeNBR AS hm_Zip
+  ,NewPersonHomeAddressStreetNM AS street
+  ,NewPersonHomeAddressCityNM AS city
+  ,NewPersonHomeAddressStateNM AS state
+  ,NewPersonHomeAddressZipcodeNBR AS zip
 FROM
   Cerner.Person.ManagementTransaction
  WHERE NewEncounterID IN (SELECT DISTINCT
@@ -177,10 +177,10 @@ SELECT DISTINCT
   ,person.Marital_Status AS Marital_Status
   ,person.Sex AS Sex
   ,person.Religion AS Religion
-  ,zipcpde.hm_street AS hm_street
-  ,zipcode.hm_city AS hm_city
-  ,sipcode.hm_state AS hm_state
-  ,zipcode.zip AS Person_ZipCode
+  ,zipcode.street
+  ,zipcode.city
+  ,zipcode.state
+  ,zipcode.zip
   ,encounter.BuildingLocationCVDSC AS Building
   ,encounter.NurseUnitLocationCVDSC AS NurseUnit
   ,encounter.AdmitTypeCVDisplayDSC AS AdmitType
