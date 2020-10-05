@@ -68,21 +68,15 @@ df <- read.csv2(
 
 df.processed <- df %>% 
   mutate(
-    Race = na_if(
-      Race,
-      "0"
+    Race = gsub(
+      "^\\s.*",
+      "Not Obtained",
+      Race
     ),
-    Race = na_if(
-      Race,
-      " "
-    ),
-    Ethnicity = na_if(
-      Ethnicity,
-      "0"
-    ),
-    Ethnicity = na_if(
-      Ethnicity,
-      " "
+    Ethnicity = gsub(
+      "^\\s.*",
+      "Not Obtained",
+      Ethnicity
     ),
     ReasonForVisit = na_if(
       ReasonForVisit,
@@ -90,14 +84,6 @@ df.processed <- df %>%
     )
   ) %>% 
   mutate(
-    Race = replace_na(
-      Race,
-      "Not Obtained"
-    ),
-    Ethnicity = replace_na(
-      Ethnicity,
-      "Not Obtained"
-    ),
     ZipCode = gsub(   # only grab the zipcode, not the extension
       "(\\d{5}).*",
       "\\1",
