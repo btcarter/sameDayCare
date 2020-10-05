@@ -55,9 +55,9 @@ lda.list <- list()
 
 pb <- progress_bar$new(
   format = "  Running LDA [:bar] :percent eta: :eta\n Elapsed :elapsedfull",
-  total = 999, clear = FALSE)
+  total = 200, clear = FALSE)
 
-for (i in seq(2,1000)){
+for (i in seq(1,200)*5){
   
   pb$tick()
   
@@ -94,6 +94,7 @@ for (i in seq(2,1000)){
                         "perplexity" = text.perplexity)
   
   lda.list$perp_df <- rbind(lda.list$perp_df, df.perp)
+  print(lda.list$perp_df) # can comment this line out if you want.
   
 }
 
