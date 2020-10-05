@@ -1,0 +1,1 @@
+"C:\Users\CarteB\OneDrive - BILLINGS CLINIC\Documents\R\R-4.0.2\bin\Rscript.exe" "C:\Users\CarteB\BILLINGS CLINIC\CSI & David Hedges - Same Day Care Project\R\analyses\nlp.R" > "C:\Users\CarteB\BILLINGS CLINIC\CSI & David Hedges - Same Day Care Project\R\analyses\nlpProgress.txt"
