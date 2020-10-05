@@ -145,16 +145,17 @@ SAM.Readmissions.SummaryIndex
 
 zipcode AS (
 SELECT
-  DISTINCT NewPersonID AS PersonID
-  ,NewEncounterID AS EncounterID
-  ,NewPersonHomeAddressStreetNM AS street
-  ,NewPersonHomeAddressCityNM AS city
-  ,NewPersonHomeAddressStateNM AS state
-  ,NewPersonHomeAddressZipcodeNBR AS zip
+  DISTINCT ParentEntityID AS PersonID
+  ,CONCAT(StreetAddress01TXT,' ',StreetAddress02TXT) AS street
+  ,CityNM AS city
+  ,StateCD AS state
+  ,ZipCD AS zip
 FROM
-  Cerner.Person.ManagementTransaction
- WHERE NewEncounterID IN (SELECT DISTINCT
-						EncounterID AS NewEncounterID
+  Cerner.Reference.Address
+ WHERE ParentEntityNM = 'PERSON'
+ AND AddressTypeCVDSC = 'home'
+ AND ParentEntityID IN (SELECT DISTINCT
+						PersonID
 						FROM Cerner.Schedule.Appointment
 						WHERE BeginDTS BETWEEN '2017-01-01'
 						AND '2019-12-31'
@@ -197,7 +198,7 @@ FROM
   LEFT JOIN day ON sdcPatients.PersonID = day.PersonID
   LEFT JOIN person ON day.PersonID = person.PersonID
   LEFT JOIN zipcode ON day.PersonID = zipcode.PersonID
-  AND day.EncounterID = zipcode.EncounterID
+  AND day.PersonID = zipcode.PersonID
   LEFT JOIN encounter ON day.EncounterID = encounter.EncounterID
   LEFT JOIN d1 ON day.EncounterID = d1.EncounterID
 	AND day.PersonID = d1.PersonID
