@@ -1,10 +1,14 @@
 # Same Day Care Project
 
-This is a project that was resurrected after David Hedges developed some quite unbelievable models predicting patient readmission with startling accuracy (as in it was never wrong). David was skeptical and reached out to me (a neophyte) for help in discovering why the model was so blindingly accurate (did he stumble upon the holy grail of predictive models in healthcare?). So I have endevoured to reproduce his methods in R, using new data supplied by our nurse informaticist.
+This is a project that was resurrected after David Hedges developed some quite unbelievable models predicting patient readmission with startling accuracy (as in it was never wrong). David was skeptical and reached out to me (a neophyte) for help in discovering why the model was so blindingly accurate (did he stumble upon the holy grail of predictive models in healthcare?). So I have endevoured to reproduce his methods in R, using new data supplied via SQL rather than the hand curated data for the original dataset.
 
 The basic plan is to assess the variables and recreate the same models, with the addition of an natural language processing algorithm to create a new variable representing the reason for admission based upon physician notes. We'll see how this goes.
 
 # Progress Notes
+
+## 2020.10.05
+
+Discovered American Community Survey data. Adding this for geographic inquiries.
 
 ## 2020.09.22
 
