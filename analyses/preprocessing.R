@@ -18,7 +18,7 @@ library(topicmodels)
 data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                            "CSI & David Hedges - Same Day Care Project", "data")
 
-df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-08-26.csv")
+df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-10-05.csv")
 
 out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                           "CSI & David Hedges - Same Day Care Project", "data")
@@ -58,7 +58,6 @@ cols <- c(
 
 df <- read.csv2(
   df.path,
-  header = FALSE,
   sep = ",",
   col.names = cols,
   stringsAsFactors = FALSE,
@@ -66,7 +65,6 @@ df <- read.csv2(
   )
 
 # correct bad entries ####
-df[1,1] <- "2017-01-25 08:00:00.0000000"
 
 df.processed <- df %>% 
   mutate(
