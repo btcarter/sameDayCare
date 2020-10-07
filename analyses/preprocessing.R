@@ -43,6 +43,7 @@ cols <- c(
   "city",
   "state",
   "ZipCode",
+  "country",
   "Building",
   "NurseUnit",
   "AdmitType",
@@ -108,8 +109,40 @@ df.processed <- df %>%
     !grepl("^\\d+", ICD_code) # get rid of entries with incomplete ICD-10
   )
 
+# manual clean up of zip codes and state names
 
+df.processed <- df.processed %>% 
+  mutate(
+    ZipCode = gsub(
+      "\\D",
+      "",
+      ZipCode
+    )
+  ) %>% 
+  mutate(
+    ZipCode = gsub(
+      "(^\\d{0,4}$)|(^\\D+)|(\\D$)",
+      "UNKNOWN",
+      ZipCode
+    )
+  ) %>% 
+  mutate(
+    ZipCode = replace_na(ZipCode, "UNKOWN")
+  )
 
+df.processed$state[df.processed$state == "MT4066979540"] <- "MT"
+df.processed$state[df.processed$state == "US/MT"] <- "MT"
+
+bad <- c("0", "00", " ", "-- SELECT ONE --", ".", "99")
+df.processed$state[df.processed$state %in% bad] <- "UNKNOWN"
+
+bad <- c("GLENDIVE", "59330", "31")
+df.processed$state[df.processed$state %in% bad] <- "MT"
+
+df.processed %>% 
+  filter(
+    state == "SK"
+  ) %>% View()
 
 # FLATTEN DATA ####
 
