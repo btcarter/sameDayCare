@@ -441,11 +441,15 @@ as.data.frame(sdc.model.summary$coefficients) %>%
 - Add in vital signs
 - Consider adding previous LOS, days since last encounter.
 - Consider comparison against all other primary care visits. E.g. Is there a difference in the number of single individuals accessing care between PCP's and SDC?
-- Consider using this as a case study for cleaning up how data is entered? e.g. What/where is *Same Day Care* Nurse Unit?
+- Consider using this as a case study for cleaning up how data is entered? e.g. What/where is *Same Day Care* Nurse Unit? Why are the number of buildings and Nurse Units different? Shouldn't they be the same? If not, why?
 - Consider doing a PCA to examine latent variables and correlations.
 - Add SES by street address
 - move some variable creation into preprocessing.
 - look for latent variables using PCA
+- Add nation to the EMR
+- Consider regulation of address information and differentiating between mailing and residential address. This important in terms of readiness to track disease outbreaks and public health interventions. E.g. PO Box addresses should be entered as a mailing address not a home address. 'Attn. John Doe' should be entered as the second or third line for street address. Not first.
+- Maybe targeted interventions for minority populations, e.g. park a mobile clinic on/near a reservation at a regular time each week to facilitate care.
+- Chronic disease tables are terrible as is. Need to create SAM or something. How to determine? Presence of relevant ICD-10 in the past 5-10 years? Look for prescribed medications?
 
 
 # Future steps
