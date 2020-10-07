@@ -150,6 +150,7 @@ SELECT
   ,CityNM AS city
   ,StateCD AS state
   ,ZipCD AS zip
+  ,CountryNM AS country
 FROM
   Cerner.Reference.Address
  WHERE ParentEntityNM = 'PERSON'
@@ -182,6 +183,7 @@ SELECT DISTINCT
   ,zipcode.city
   ,zipcode.state
   ,zipcode.zip
+  ,zipcode.country
   ,encounter.BuildingLocationCVDSC AS Building
   ,encounter.NurseUnitLocationCVDSC AS NurseUnit
   ,encounter.AdmitTypeCVDisplayDSC AS AdmitType
