@@ -435,7 +435,7 @@ get_geoid <- function(street, city, state, country, postalcode){
   return(geoid)
 }
 
-pancake.stack <- pancake.stack$Encounters %>% 
+pancake.stack$Encounters <- pancake.stack$Encounters %>% 
   mutate(
     GEOID = get_geoid(
       street = street,
@@ -451,7 +451,7 @@ pancake.stack <- pancake.stack$Encounters %>%
     GEOID = GEOID[3]
   )
 
-# sew everything together
+# sew everything together for a flattened dataframe
 df.flat <- pancake.stack$Encounters %>% 
   left_join(
     pancake.stack$PriorityICD,
