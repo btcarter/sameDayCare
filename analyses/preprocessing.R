@@ -444,8 +444,6 @@ pancake.stack$Encounters <- df.processed %>%
 # add location information
 pancake.stack$Location <- df.processed %>% 
   select(
-    PersonID,
-    EncounterID,
     street,
     city,
     state,
@@ -515,8 +513,26 @@ df.flat <- pancake.stack$Encounters %>%
     pancake.stack$DiagnosisDSC,
     by = c("PersonID", "EncounterID")
   ) %>% 
+  left_join(
+    pancake.stack$Location,
+    by = c("street", "city", "state")
+  ) %>% 
   distinct()
 
+# compute distance traveled to SDC/EC
+# https://www.billingsclinic.com/maps-locations/search-results/?termId=50a19986-c81c-e411-903e-2c768a4e1b84&sort=13&page=1
+
+building_coords <- data.frame(
+  Building = character(),
+  lat = numeric(),
+  long = numeric()
+)
+
+sf::st_distance()
+
+# add rucc codes - https://www.ers.usda.gov/data-products/rural-urban-continuum-codes.aspx
+
+# create wide and long data frames
 df.flat.sdc.only <- df.flat %>% 
   select(
     -ActiveIndicatorCD
@@ -525,11 +541,18 @@ df.flat.sdc.only <- df.flat %>%
     NurseUnit %in% SDCEC
   )
 
-df.long
+df.long <- df.processed %>% 
+  filter(
+    NurseUnit %in% SDCEC
+  ) %>% 
+  left_join(
+    pancake.stack$Location,
+    by = c("street", "city", "state")
+  )
 
 
 
-# write final df to file for later use.
+# write final df to file for later use. ####
 
 writexl::write_xlsx(df.flat.sdc.only,
                     path = file.path(out.dir.path, "sdc.flat.xlsx"))
