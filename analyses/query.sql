@@ -150,7 +150,7 @@ SELECT
   ,CityNM AS city
   ,StateCD AS state
   ,ZipCD AS zip
-  ,CountryNM AS country
+  ,CountryCVDSC AS country
 FROM
   Cerner.Reference.Address
  WHERE ParentEntityNM = 'PERSON'
