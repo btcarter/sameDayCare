@@ -448,8 +448,10 @@ as.data.frame(sdc.model.summary$coefficients) %>%
 - look for latent variables using PCA
 - Add nation to the EMR
 - Consider regulation of address information and differentiating between mailing and residential address. This important in terms of readiness to track disease outbreaks and public health interventions. E.g. PO Box addresses should be entered as a mailing address not a home address. 'Attn. John Doe' should be entered as the second or third line for street address. Not first.
+- How do we enter international addresses?
 - Maybe targeted interventions for minority populations, e.g. park a mobile clinic on/near a reservation at a regular time each week to facilitate care.
 - Chronic disease tables are terrible as is. Need to create SAM or something. How to determine? Presence of relevant ICD-10 in the past 5-10 years? Look for prescribed medications?
+- Why are some encounterID's '0'?
 
 
 # Future steps
