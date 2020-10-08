@@ -390,12 +390,7 @@ pancake.stack$Encounters <- df.processed %>%
     NurseUnit,
     AdmitType,           
     EncounterType,
-    RespiratoryFailure,
-    street,
-    city,
-    state,
-    ZipCode,
-    country
+    RespiratoryFailure
   ) %>% 
   distinct() %>% 
   group_by(
@@ -417,25 +412,26 @@ pancake.stack$Encounters <- df.processed %>%
     )
   )
 
-get_geoid <- function(street, city, state, country, postalcode){
-  geoid = geocode(
+batch_size <- 10000
+
+for (section in 1:ceiling(nrow(pancake.stack$Encounters)/batch_size)){
+  rows <- section*(1:batch_size)
+  
+  pancake.stack$Encounter[rows, ] <- 
+    pancake.stack$Encounter[rows, ] %>% geocode(
     street = street,
     city = city,
     state = state,
     country = country,
     postalcode = ZipCode,
     method = 'census',
+    full_results = TRUE,
     return_type = 'geographies'
   )
-  
-  geoid <- c(geoid$lat,
-             geoid$long,
-             geoid$`geographies.Census Tracts`[[1]]$GEOID)
-  
-  return(geoid)
+
 }
 
-pancake.stack$Encounters <- pancake.stack$Encounters %>% 
+# GEOID is state_fips + county+fips + census_tract + census_block
   mutate(
     GEOID = get_geoid(
       street = street,
@@ -487,7 +483,7 @@ df.flat.sdc.only <- df.flat %>%
     NurseUnit %in% SDCEC
   )
 
-
+df.long
 
 
 
