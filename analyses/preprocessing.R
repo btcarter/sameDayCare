@@ -12,6 +12,7 @@ library(tidytext)
 library(tm)
 library(widyr)
 library(topicmodels)
+library(tidygeocoder)
 
 
 # paths ####
@@ -198,32 +199,13 @@ df.processed <- df.processed %>%
 bad <- c(state.abb, state.name, toupper(state.name))
 df.processed$country[df.processed$state %in% bad] <- "USA"
 
-df.processed$street[df.processed$street == "1234 Street ", ] <- "UNKNOWN"
-df.processed$city[df.processed$street == "1234 Street ", ] <- "UNKNOWN"
-df.processed$state[df.processed$street == "1234 Street ", ] <- "UNKNOWN"
-df.processed$zip[df.processed$street == "1234 Street ", ] <- "UNKNOWN"
-df.processed$country[df.processed$street == "1234 Street ", ] <- "UNKNOWN"
-
-test <- df.processed %>% 
-  select(
-    PersonID,
-    street,
-    city,
-    state,
-    ZipCode,
-    country
-  ) %>% 
-  distinct() %>% 
-  filter(
-    country == " "
-  )
-
-
-
-bad <- c("0", "00", " ", "-- SELECT ONE --", ".", "99")
-df.processed$state[df.processed$state %in% bad] <- "UNKNOWN"
-
-
+df.processed$street[df.processed$street == "1234 Street "] <- "UNKNOWN"
+df.processed$city[df.processed$street == "1234 Street "] <- "UNKNOWN"
+df.processed$state[df.processed$street == "1234 Street "] <- "UNKNOWN"
+df.processed$zip[df.processed$street == "1234 Street "] <- "UNKNOWN"
+df.processed$country[df.processed$street == "1234 Street "] <- "UNKNOWN"
+df.processed$country[df.processed$country == " "] <- "UNKNOWN"
+df.processed$country[df.processed$country == "UK"] <- "United Kingdom"
 
 # FLATTEN DATA ####
 
@@ -373,27 +355,6 @@ pancake.stack$ICD_block <- df.processed %>%
   ) %>% 
   ungroup()
 
-# unique ZipCode
-pancake.stack$ZipCode <- df.processed %>% 
-  select(
-    PersonID,
-    EncounterID,
-    DiagnosisPrioritySEQ,
-    ZipCode
-  ) %>% 
-  distinct() %>% 
-  group_by(
-    PersonID,
-    EncounterID
-  ) %>% 
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  summarise(
-    ZipCode = paste(ZipCode, collapse = "; ")
-  ) %>% 
-  ungroup()
-
 # sdc/ec facilities
 SDCEC <- c(
   'Express Care Central',
@@ -429,7 +390,12 @@ pancake.stack$Encounters <- df.processed %>%
     NurseUnit,
     AdmitType,           
     EncounterType,
-    RespiratoryFailure
+    RespiratoryFailure,
+    street,
+    city,
+    state,
+    ZipCode,
+    country
   ) %>% 
   distinct() %>% 
   group_by(
@@ -451,12 +417,42 @@ pancake.stack$Encounters <- df.processed %>%
     )
   )
 
+get_geoid <- function(street, city, state, country, postalcode){
+  geoid = geocode(
+    street = street,
+    city = city,
+    state = state,
+    country = country,
+    postalcode = ZipCode,
+    method = 'census',
+    return_type = 'geographies'
+  )
+  
+  geoid <- c(geoid$lat,
+             geoid$long,
+             geoid$`geographies.Census Tracts`[[1]]$GEOID)
+  
+  return(geoid)
+}
+
+pancake.stack <- pancake.stack$Encounters %>% 
+  mutate(
+    GEOID = get_geoid(
+      street = street,
+      city = city,
+      state = state,
+      country = country,
+      postalcode = ZipCode
+    )
+  ) %>% 
+  mutate(
+    lat = GEOID[1],
+    long = GEOID[2],
+    GEOID = GEOID[3]
+  )
+
 # sew everything together
 df.flat <- pancake.stack$Encounters %>% 
-  left_join(
-    pancake.stack$ZipCode,
-    by = c("PersonID", "EncounterID")
-  ) %>%
   left_join(
     pancake.stack$PriorityICD,
     by = c("PersonID", "EncounterID")
