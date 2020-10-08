@@ -207,7 +207,36 @@ df.processed$country[df.processed$street == "1234 Street "] <- "UNKNOWN"
 df.processed$country[df.processed$country == " "] <- "UNKNOWN"
 df.processed$country[df.processed$country == "UK"] <- "United Kingdom"
 
-# FLATTEN DATA ####
+# get rid of c/o clauses and flag the PO Box addresses
+
+df.processed <- df.processed %>% 
+  mutate(
+    street = toupper(street)
+  ) %>% 
+  mutate(
+    street = gsub(
+      "(.*)?(c\\/o|C\\/O)\\D*((\\d+.*)?)",
+      "\\1 \\3",
+      street
+    )
+  ) %>% 
+  mutate(
+    street = gsub(
+      "^\\s(\\d+)$",
+      "PO BOX \\1",
+      street
+    )
+  ) %>% 
+  mutate(
+    po_box = if_else(
+      grepl("(PO BOX)|(P.O. BOX)", street),
+      TRUE,
+      FALSE
+    )
+  )
+
+
+# MAKE WIDE AND LONG ####
 
 pancake.stack <- list()
 
@@ -412,13 +441,26 @@ pancake.stack$Encounters <- df.processed %>%
     )
   )
 
+# add location information
+pancake.stack$Location <- df.processed %>% 
+  select(
+    PersonID,
+    EncounterID,
+    street,
+    city,
+    state,
+    country,
+    ZipCode
+  ) %>% 
+  distinct()
+
 batch_size <- 10000
 
-for (section in 1:ceiling(nrow(pancake.stack$Encounters)/batch_size)){
+for (section in 1:ceiling(nrow(pancake.stack$Location)/batch_size)){
   rows <- section*(1:batch_size)
   
-  pancake.stack$Encounter[rows, ] <- 
-    pancake.stack$Encounter[rows, ] %>% geocode(
+  pancake.stack$Location[rows, ] <- 
+    pancake.stack$Location[rows, ] %>% geocode(
     street = street,
     city = city,
     state = state,
