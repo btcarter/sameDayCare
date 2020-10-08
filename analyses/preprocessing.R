@@ -18,7 +18,7 @@ library(topicmodels)
 data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                            "CSI & David Hedges - Same Day Care Project", "data")
 
-df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-10-05.csv")
+df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-10-07.csv")
 
 out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                           "CSI & David Hedges - Same Day Care Project", "data")
@@ -109,40 +109,121 @@ df.processed <- df %>%
     !grepl("^\\d+", ICD_code) # get rid of entries with incomplete ICD-10
   )
 
-# manual clean up of zip codes and state names
+# manual clean up address information
+
+bad <- c("10782", "US", "USA DUP")
+df.processed$country[df.processed$country %in% bad] <- "USA"
+
+bad <- c(state.abb, state.name, toupper(state.name))
+df.processed$country[df.processed$state %in% bad] <- "USA"
+
+bad <- c("GLENDIVE", "59330", "31", "MT4066979540", "US/MT", "MONTANA")
+df.processed$state[df.processed$state %in% bad] <- "MT"
+
+bad <- c(" ", 
+         "   ", 
+         "00", 
+         "000", 
+         "00000", 
+         ".", 
+         "XX", 
+         "9999", 
+         "99",
+         "UNK",
+         NULL, 
+         NA)
 
 df.processed <- df.processed %>% 
   mutate(
-    ZipCode = gsub(
-      "\\D",
-      "",
-      ZipCode
-    )
-  ) %>% 
-  mutate(
-    ZipCode = gsub(
-      "(^\\d{0,4}$)|(^\\D+)|(\\D$)",
+    street = if_else(
+      street %in% bad,
+      "UNKNOWN",
+      street
+    ),
+    city = if_else(
+      city %in% bad,
+      "UNKNOWN",
+      city
+    ),
+    state = if_else(
+      state %in% bad,
+      "UNKNOWN",
+      state
+    ),
+    ZipCode = if_else(
+      ZipCode %in% bad,
       "UNKNOWN",
       ZipCode
     )
   ) %>% 
   mutate(
-    ZipCode = replace_na(ZipCode, "UNKOWN")
+    country = if_else(state == "UNKNOWN" & 
+                        city == "UNKNOWN" & 
+                        ZipCode == "UNKNOWN",
+                      "UNKNOWN",
+                      country
+                      )
   )
 
-df.processed$state[df.processed$state == "MT4066979540"] <- "MT"
-df.processed$state[df.processed$state == "US/MT"] <- "MT"
+df.processed <- df.processed %>% 
+  mutate(
+    city = if_else(
+      street == paste(city,"  ",sep = ""),
+      state,
+      city
+    ),
+    state = if_else(
+      street == paste(city,"  ",sep = ""),
+      ZipCode,
+      state
+    )
+  ) 
+
+df.processed <- df.processed %>% 
+  mutate(
+    state = if_else(
+      city == "BILLINGS",
+      "MT",
+      state
+    )
+  ) %>% 
+  mutate(
+    city = if_else(
+      city == "BILLINGS",
+      "Billings",
+      city
+    )
+  )
+
+bad <- c(state.abb, state.name, toupper(state.name))
+df.processed$country[df.processed$state %in% bad] <- "USA"
+
+df.processed$street[df.processed$street == "1234 Street ", ] <- "UNKNOWN"
+df.processed$city[df.processed$street == "1234 Street ", ] <- "UNKNOWN"
+df.processed$state[df.processed$street == "1234 Street ", ] <- "UNKNOWN"
+df.processed$zip[df.processed$street == "1234 Street ", ] <- "UNKNOWN"
+df.processed$country[df.processed$street == "1234 Street ", ] <- "UNKNOWN"
+
+test <- df.processed %>% 
+  select(
+    PersonID,
+    street,
+    city,
+    state,
+    ZipCode,
+    country
+  ) %>% 
+  distinct() %>% 
+  filter(
+    country == " "
+  )
+
+
 
 bad <- c("0", "00", " ", "-- SELECT ONE --", ".", "99")
 df.processed$state[df.processed$state %in% bad] <- "UNKNOWN"
 
-bad <- c("GLENDIVE", "59330", "31")
-df.processed$state[df.processed$state %in% bad] <- "MT"
 
-df.processed %>% 
-  filter(
-    state == "SK"
-  ) %>% View()
 
 # FLATTEN DATA ####
 
