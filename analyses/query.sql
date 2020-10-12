@@ -131,6 +131,27 @@ WHERE EncounterID IN (SELECT DISTINCT
 						AND '2019-12-31'
 						AND RoleMeaningDSC = 'PATIENT'
 						AND ActiveIndicatorCD = 1 )
+),
+
+zipcode AS (
+SELECT
+  DISTINCT ParentEntityID AS PersonID
+  ,CONCAT(StreetAddress01TXT,' ',StreetAddress02TXT) AS street
+  ,CityNM AS city
+  ,StateCD AS state
+  ,ZipCD AS zip
+  ,CountryNM AS country
+FROM
+  Cerner.Reference.Address
+ WHERE ParentEntityNM = 'PERSON'
+ AND AddressTypeCVDSC = 'home'
+ AND ParentEntityID IN (SELECT DISTINCT
+						PersonID
+						FROM Cerner.Schedule.Appointment
+						WHERE BeginDTS BETWEEN '2017-01-01'
+						AND '2019-12-31'
+						AND RoleMeaningDSC = 'PATIENT'
+						AND ActiveIndicatorCD = 1 )
 )
 
 -- Now tie them all together
