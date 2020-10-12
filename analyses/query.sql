@@ -136,6 +136,7 @@ WHERE EncounterID IN (SELECT DISTINCT
 zipcode AS (
 SELECT
   DISTINCT ParentEntityID AS PersonID
+  ,ROW_NUMBER() OVER (PARTITION BY ParentEntityID ORDER BY BeginEffectiveUTCDTS DESC) AS rn
   ,CONCAT(StreetAddress01TXT,' ',StreetAddress02TXT) AS street
   ,CityNM AS city
   ,StateCD AS state
@@ -195,5 +196,5 @@ FROM
   LEFT JOIN d2 ON day.EncounterID = d2.EncounterID
 	AND day.PersonID = d2.PatientID
 	AND d1.DiagnosisID = d2.DiagnosisID
-WHERE day.BeginDTS BETWEEN '2017-01-01' AND '2019-12-31'
+WHERE day.BeginDTS BETWEEN '2017-01-01' AND '2019-12-31' AND zipcode.rn = 1
 ORDER BY day.PersonID, day.BeginDTS, day.EncounterID
