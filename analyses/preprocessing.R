@@ -19,7 +19,7 @@ library(tidygeocoder)
 data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                            "CSI & David Hedges - Same Day Care Project", "data")
 
-df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-10-07.csv")
+df.path <- file.path(data.dir.path, "sdc.2017-2019.2020-10-12.csv")
 
 out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
                           "CSI & David Hedges - Same Day Care Project", "data")
@@ -200,7 +200,7 @@ df.processed$country[df.processed$state %in% bad] <- "USA"
 df.processed$street[df.processed$street == "1234 Street "] <- "UNKNOWN"
 df.processed$city[df.processed$street == "1234 Street "] <- "UNKNOWN"
 df.processed$state[df.processed$street == "1234 Street "] <- "UNKNOWN"
-df.processed$zip[df.processed$street == "1234 Street "] <- "UNKNOWN"
+df.processed$ZipCode[df.processed$street == "1234 Street "] <- "UNKNOWN"
 df.processed$country[df.processed$street == "1234 Street "] <- "UNKNOWN"
 df.processed$country[df.processed$country == " "] <- "UNKNOWN"
 df.processed$country[df.processed$country == "UK"] <- "United Kingdom"
@@ -244,7 +244,10 @@ test <- df.processed %>%
     DTS
   ) %>% 
   mutate(
-    ICD_all = paste(ICD_code, collapse = "; ")
+    ICD_all = paste(ICD_code, collapse = "; "),
+    ICD_block_all = paste(ICD_block, collapse = "; "),
+    ReasonForVisit_all = paste(ReasonForVisit, collapse = "; "),
+    DiagnosisDSC_all = paste(DiagnosisDSC, collapse = "; ")
   ) %>% 
   arrange(
     desc(DiagnosisPrioritySEQ)
@@ -433,8 +436,7 @@ pancake.stack$Encounters <- df.processed %>%
     Building,
     NurseUnit,
     AdmitType,           
-    EncounterType,
-    RespiratoryFailure
+    EncounterType
   ) %>% 
   distinct() %>% 
   group_by(
