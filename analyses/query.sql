@@ -131,37 +131,6 @@ WHERE EncounterID IN (SELECT DISTINCT
 						AND '2019-12-31'
 						AND RoleMeaningDSC = 'PATIENT'
 						AND ActiveIndicatorCD = 1 )
-),
-
--- respiratory tables comorbidities
-respiratoryFailure AS (
-SELECT
-  DISTINCT PatientID
-  ,CASE WHEN PatientID IS NOT NULL THEN 1 ELSE 0 END AS RespiratoryFailure
-  ,CharlsonDeyoRiskScoreNBR
-FROM
-SAM.Readmissions.SummaryIndex
-),
-
-zipcode AS (
-SELECT
-  DISTINCT ParentEntityID AS PersonID
-  ,CONCAT(StreetAddress01TXT,' ',StreetAddress02TXT) AS street
-  ,CityNM AS city
-  ,StateCD AS state
-  ,ZipCD AS zip
-  ,CountryCVDSC AS country
-FROM
-  Cerner.Reference.Address
- WHERE ParentEntityNM = 'PERSON'
- AND AddressTypeCVDSC = 'home'
- AND ParentEntityID IN (SELECT DISTINCT
-						PersonID
-						FROM Cerner.Schedule.Appointment
-						WHERE BeginDTS BETWEEN '2017-01-01'
-						AND '2019-12-31'
-						AND RoleMeaningDSC = 'PATIENT'
-						AND ActiveIndicatorCD = 1 )
 )
 
 -- Now tie them all together
@@ -193,8 +162,6 @@ SELECT DISTINCT
   ,d2.DiagnosisCD AS ICD
   ,d1.DiagnosisTypeCVDSC
   ,d2.DiagnosisDSC
-  ,respiratoryFailure.RespiratoryFailure AS RespiratoryFailure
-  ,respiratoryFailure.CharlsonDeyoRiskScoreNBR AS CharlsonDeyoScore
 FROM
   sdcPatients
   LEFT JOIN day ON sdcPatients.PersonID = day.PersonID
@@ -207,6 +174,5 @@ FROM
   LEFT JOIN d2 ON day.EncounterID = d2.EncounterID
 	AND day.PersonID = d2.PatientID
 	AND d1.DiagnosisID = d2.DiagnosisID
-  LEFT JOIN respiratoryFailure ON day.PersonID = respiratoryFailure.PatientID
 WHERE day.BeginDTS BETWEEN '2017-01-01' AND '2019-12-31'
 ORDER BY day.PersonID, day.BeginDTS, day.EncounterID
