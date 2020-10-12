@@ -528,6 +528,7 @@ building_coords <- data.frame(
   long = numeric()
 )
 
+# https://www.r-bloggers.com/2020/02/three-ways-to-calculate-distances-in-r/
 sf::st_distance()
 
 # add rucc codes - https://www.ers.usda.gov/data-products/rural-urban-continuum-codes.aspx
