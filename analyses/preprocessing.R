@@ -236,7 +236,24 @@ df.processed <- df.processed %>%
   )
 
 
-# MAKE WIDE AND LONG ####
+# MAKE WIDE AND LONG OUTPUT ####
+
+test <- df.processed %>% 
+  distinct() %>% 
+  group_by(
+    PersonID,
+    EncounterID,
+    DTS
+  ) %>% 
+  mutate(
+    ICD_all = paste(ICD_code, collapse = "; ")
+  ) %>% 
+  arrange(
+    desc(DiagnosisPrioritySEQ)
+  ) %>% 
+  slice(1) %>% 
+  ungroup()
+
 
 pancake.stack <- list()
 
