@@ -108,7 +108,7 @@ df.processed <- df %>%
   ) %>% 
   filter(
     !grepl("^\\d+", ICD_code) # get rid of entries with incomplete ICD-10
-  )
+  ) %>% distinct()
 
 # manual clean up address information
 
