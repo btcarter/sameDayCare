@@ -53,9 +53,7 @@ cols <- c(
   "DiagnosisPrioritySEQ",
   "ICD",
   "DiagnosisType",
-  "DiagnosisDSC",
-  "RespiratoryFailure",
-  "CharlsonDeyoScore"
+  "DiagnosisDSC"
 )
 
 df <- read.csv2(
