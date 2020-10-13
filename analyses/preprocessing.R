@@ -13,6 +13,7 @@ library(tm)
 library(widyr)
 library(topicmodels)
 library(tidygeocoder)
+library(readxl)
 
 
 # paths ####
@@ -311,11 +312,6 @@ Encounters <- df.processed %>%
     DTS,
     PersonID,
     EncounterID,
-    street,
-    city,
-    state,
-    ZipCode,
-    country,
     Building,
     NurseUnit,
     AdmitType,           
@@ -367,14 +363,29 @@ Encounters <- Encounters %>%
     NurseUnit %in% SDCEC
   )
 
+Addresses <- df.processed %>% 
+  select(
+    street,
+    city,
+    state,
+    ZipCode,
+    country,
+  ) %>% 
+  distinct()
+
+building_coords <- read_xlsx(file.path(
+  data.dir.path,
+  "locations.xlsx"
+))
+
 # add home coordinates and GEOID
 batch_size <- 10000
 
-for (section in 1:ceiling(nrow(Encounters)/batch_size)){
+for (section in 1:ceiling(nrow(Addresses)/batch_size)){
   rows <- section*(1:batch_size)
   
-  Encounters[rows, ] <- 
-    Encounters[rows, ] %>% geocode(
+  Addresses[rows, ] <- 
+    Addresses[rows, ] %>% geocode(
     street = street,
     city = city,
     state = state,
@@ -382,7 +393,8 @@ for (section in 1:ceiling(nrow(Encounters)/batch_size)){
     postalcode = ZipCode,
     method = 'census',
     full_results = TRUE,
-    return_type = 'geographies'
+    return_type = 'geographies',
+    unique_only = FALSE
   )
 
 }
@@ -407,11 +419,7 @@ for (section in 1:ceiling(nrow(Encounters)/batch_size)){
 # compute distance traveled to SDC/EC
 # https://www.billingsclinic.com/maps-locations/search-results/?termId=50a19986-c81c-e411-903e-2c768a4e1b84&sort=13&page=1
 
-building_coords <- data.frame(
-  Building = character(),
-  lat = numeric(),
-  long = numeric()
-)
+
 
 # https://www.r-bloggers.com/2020/02/three-ways-to-calculate-distances-in-r/
 sf::st_distance()
