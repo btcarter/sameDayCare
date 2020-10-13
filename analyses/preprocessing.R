@@ -107,6 +107,11 @@ df.processed <- df %>%
       Ethnicity %in% c("Hispanic or Latino"),
       "Hispanic or Latino",
       "Non-Hispanic or Latino"
+    ),
+    Race = if_else(
+      Race == "Native American",
+      "Native American/Native Alaskan",
+      Race
     )
   ) %>% 
   mutate(
@@ -301,11 +306,16 @@ SDCEC <- c(
 )
 
 # unique encounters
-Encounters <- df.flat %>% 
+Encounters <- df.processed %>% 
   select(
     DTS,
     PersonID,
     EncounterID,
+    street,
+    city,
+    state,
+    ZipCode,
+    country,
     Building,
     NurseUnit,
     AdmitType,           
@@ -317,8 +327,8 @@ Encounters <- df.flat %>%
   ) %>% 
   arrange(
     PersonID,
-    EncounterID,
-    DTS
+    DTS,
+    EncounterID
   ) %>% 
   ungroup() %>%  
   mutate(
@@ -332,42 +342,39 @@ Encounters <- df.flat %>%
   ) %>% 
   mutate(
     return_Building = if_else(
-      PersonID = lead(PersonID) &
+      PersonID == lead(PersonID) & 
         DTS != lead(DTS),
       lead(Building),
-      NA
+      NULL
     ),
     return_NurseUnit = if_else(
-      PersonID = lead(PersonID) &
+      PersonID == lead(PersonID) & 
         DTS != lead(DTS),
       lead(NurseUnit),
-      NA),
+      NULL
+    ),
     days_to_return = if_else(
-      PersonID = lead(PersonID) &
+      PersonID == lead(PersonID) & 
         DTS != lead(DTS),
-      lead(unclass(DTS))-unclass(DTS)
+      round((lead(unclass(DTS))-unclass(DTS))/(14*3600), 1),
+      NULL
     )
   )
 
+# Select SDC/EC only visits
+Encounters <- Encounters %>% 
+  filter(
+    NurseUnit %in% SDCEC
+  )
 
-# add location information
-pancake.stack$Location <- df.processed %>% 
-  select(
-    street,
-    city,
-    state,
-    country,
-    ZipCode
-  ) %>% 
-  distinct()
-
+# add home coordinates and GEOID
 batch_size <- 10000
 
-for (section in 1:ceiling(nrow(pancake.stack$Location)/batch_size)){
+for (section in 1:ceiling(nrow(Encounters)/batch_size)){
   rows <- section*(1:batch_size)
   
-  pancake.stack$Location[rows, ] <- 
-    pancake.stack$Location[rows, ] %>% geocode(
+  Encounters[rows, ] <- 
+    Encounters[rows, ] %>% geocode(
     street = street,
     city = city,
     state = state,
