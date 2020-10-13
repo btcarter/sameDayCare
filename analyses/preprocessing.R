@@ -233,172 +233,21 @@ df.processed <- df.processed %>%
     )
   )
 
-
-# MAKE WIDE AND LONG OUTPUT ####
-
-test <- df.processed %>% 
+df.processed <- df.processed %>% 
   distinct() %>% 
   group_by(
     PersonID,
     EncounterID,
     DTS
+  ) %>%
+  arrange(
+    desc(DiagnosisPrioritySEQ)
   ) %>% 
   mutate(
     ICD_all = paste(ICD_code, collapse = "; "),
     ICD_block_all = paste(ICD_block, collapse = "; "),
     ReasonForVisit_all = paste(ReasonForVisit, collapse = "; "),
     DiagnosisDSC_all = paste(DiagnosisDSC, collapse = "; ")
-  ) %>% 
-  arrange(
-    desc(DiagnosisPrioritySEQ)
-  ) %>% 
-  slice(1) %>% 
-  ungroup()
-
-
-pancake.stack <- list()
-
-# unique ICDs - maybe expand this so it's wide?
-pancake.stack$ICD_code <- df.processed %>% 
-  select(
-    PersonID,
-    EncounterID,
-    DiagnosisPrioritySEQ,
-    ICD_code
-  ) %>% 
-  distinct() %>% 
-  group_by(
-    PersonID,
-    EncounterID
-  ) %>% 
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  summarise(
-    ICD_code = paste(ICD_code, collapse = "; ")
-  ) %>% 
-  ungroup()
-
-# ICD by DiagnosisType
-pancake.stack$ICD_DiagnosisType <- df.processed %>% 
-  select(
-    PersonID,
-    EncounterID,
-    DiagnosisType,
-    ICD_code
-  ) %>% 
-  distinct() %>% 
-  pivot_wider(
-    names_from = DiagnosisType,
-    values_from = ICD_code
-  )
-
-
-# priority ICD
-pancake.stack$PriorityICD <-df.processed %>% 
-  select(
-    PersonID,
-    EncounterID,
-    DiagnosisPrioritySEQ,
-    ICD_code
-  ) %>% 
-  distinct() %>% 
-  group_by(
-    PersonID,
-    EncounterID
-  ) %>% 
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  slice(
-    1
-  ) %>% 
-  ungroup() %>% 
-  rename(
-    PriorityICD = ICD_code
-  )
-
-# unique reasons for visits
-pancake.stack$ReasonForVisit <- df.processed %>% 
-  select(
-    PersonID,
-    EncounterID,
-    DiagnosisPrioritySEQ,
-    ReasonForVisit
-  ) %>% 
-  distinct() %>% 
-  group_by(
-    PersonID,
-    EncounterID
-  ) %>% 
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  summarise(
-    ReasonForVisit = paste(ReasonForVisit, collapse = "; ")
-  ) %>% 
-  ungroup()
-
-# unique diagnosis type
-pancake.stack$DiagnosisType <- df.processed %>% 
-  select(
-    PersonID,
-    EncounterID,
-    DiagnosisPrioritySEQ,
-    DiagnosisType
-  ) %>% 
-  distinct() %>% 
-  group_by(
-    PersonID,
-    EncounterID
-  ) %>% 
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  summarise(
-    DiagnosisType = paste(DiagnosisType, collapse = "; ")
-  ) %>% 
-  ungroup()
-
-#unique diagnosisdsc
-pancake.stack$DiagnosisDSC <- df.processed %>% 
-  select(
-    PersonID,
-    EncounterID,
-    DiagnosisPrioritySEQ,
-    DiagnosisDSC
-  ) %>% 
-  distinct() %>% 
-  group_by(
-    PersonID,
-    EncounterID
-  ) %>% 
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  summarise(
-    DiagnosisDSC = paste(DiagnosisDSC, collapse = "; ")
-  ) %>% 
-  ungroup()
-
-# unique ICD block
-pancake.stack$ICD_block <- df.processed %>% 
-  select(
-    PersonID,
-    EncounterID,
-    DiagnosisPrioritySEQ,
-    ICD_block
-  ) %>% 
-  distinct() %>% 
-  group_by(
-    PersonID,
-    EncounterID
-  ) %>% 
-  arrange(
-    DiagnosisPrioritySEQ
-  ) %>% 
-  summarise(
-    ICD_block = paste(ICD_block, collapse = "; ")
   ) %>% 
   ungroup()
 
@@ -420,19 +269,11 @@ SDCEC <- c(
 )
 
 # unique encounters
-pancake.stack$Encounters <- df.processed %>% 
+Encounters <- df.flat %>% 
   select(
     DTS,
     PersonID,
     EncounterID,
-    ActiveIndicatorCD,
-    AdmitAge,
-    Ethnicity,
-    Language,
-    Race,
-    Marital_Status,
-    Sex,
-    Religion,
     Building,
     NurseUnit,
     AdmitType,           
@@ -456,7 +297,26 @@ pancake.stack$Encounters <- df.processed %>%
       TRUE,
       FALSE
     )
+  ) %>% 
+  mutate(
+    return_Building = if_else(
+      PersonID = lead(PersonID) &
+        DTS != lead(DTS),
+      lead(Building),
+      NA
+    ),
+    return_NurseUnit = if_else(
+      PersonID = lead(PersonID) &
+        DTS != lead(DTS),
+      lead(NurseUnit),
+      NA),
+    days_to_return = if_else(
+      PersonID = lead(PersonID) &
+        DTS != lead(DTS),
+      lead(unclass(DTS))-unclass(DTS)
+    )
   )
+
 
 # add location information
 pancake.stack$Location <- df.processed %>% 
@@ -504,37 +364,6 @@ for (section in 1:ceiling(nrow(pancake.stack$Location)/batch_size)){
     GEOID = GEOID[3]
   )
 
-# sew everything together for a flattened dataframe
-df.flat <- pancake.stack$Encounters %>% 
-  left_join(
-    pancake.stack$PriorityICD,
-    by = c("PersonID", "EncounterID")
-  ) %>% 
-  left_join(
-    pancake.stack$ICD_block,
-    by = c("PersonID", "EncounterID")
-  ) %>% 
-  left_join(
-    pancake.stack$ICD_code,
-    by = c("PersonID", "EncounterID")
-  ) %>% 
-  left_join(
-    pancake.stack$ReasonForVisit,
-    by = c("PersonID", "EncounterID")
-  ) %>%  
-  left_join(
-    pancake.stack$DiagnosisType,
-    by = c("PersonID", "EncounterID")
-  ) %>% 
-  left_join(
-    pancake.stack$DiagnosisDSC,
-    by = c("PersonID", "EncounterID")
-  ) %>% 
-  left_join(
-    pancake.stack$Location,
-    by = c("street", "city", "state")
-  ) %>% 
-  distinct()
 
 # compute distance traveled to SDC/EC
 # https://www.billingsclinic.com/maps-locations/search-results/?termId=50a19986-c81c-e411-903e-2c768a4e1b84&sort=13&page=1
@@ -567,6 +396,20 @@ df.long <- df.processed %>%
     pancake.stack$Location,
     by = c("street", "city", "state")
   )
+
+
+# MAKE WIDE AND LONG OUTPUT ####
+df.flat <- df.processed %>% 
+  group_by(
+    PersonID,
+    EncounterID,
+    DTS
+  ) %>% 
+  arrange(
+    desc(DiagnosisPrioritySEQ)
+  ) %>% 
+  slice(1) %>% 
+  ungroup()
 
 
 
