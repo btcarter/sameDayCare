@@ -66,6 +66,20 @@ df <- read.csv2(
 
 # correct bad entries ####
 
+tribes <- c("Chippewa",
+            "Gros Ventre",
+            "Crow",
+            "Blackfeet",
+            "Kootenai",
+            "Northern Cheyenne",
+            "Multiple",
+            "Assiniboine",
+            "Sioux",
+            "Chippewa-Cree",
+            "Flathead Salish",
+            "Shoshone"
+            )
+
 df.processed <- df %>% 
   mutate(
     Race = gsub(
@@ -82,6 +96,24 @@ df.processed <- df %>%
       ReasonForVisit,
       "NA"
     )
+  ) %>% 
+  mutate(
+    tribal_affil = if_else(
+      Ethnicity %in% tribes,
+      Ethnicity,
+      "Not affiliated"
+    ),
+    Fed_Ethnicity = if_else(
+      Ethnicity %in% c("Hispanic or Latino"),
+      "Hispanic or Latino",
+      "Non-Hispanic or Latino"
+    )
+  ) %>% 
+  mutate(
+    BC_Ethnicity = Ethnicity
+  ) %>% 
+  select(
+    -Ethnicity
   ) %>% 
   mutate(
     ZipCode = gsub(   # only grab the zipcode, not the extension
