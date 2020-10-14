@@ -247,7 +247,9 @@ df.processed$country[df.processed$country == "UK"] <- "United Kingdom"
 
 df.processed <- df.processed %>% 
   mutate(
-    street = toupper(street)
+    street = toupper(street),
+    city = toupper(city),
+    state = toupper(state)
   ) %>% 
   mutate(
     street = gsub(
@@ -364,27 +366,70 @@ Encounters <- Encounters %>%
   )
 
 Addresses <- df.processed %>% 
+  filter(
+    po_box != TRUE
+  ) %>% 
   select(
     street,
     city,
     state,
     ZipCode,
-    country,
+    country
   ) %>% 
   distinct()
 
+# get coords for facilities
 building_coords <- read_xlsx(file.path(
   data.dir.path,
   "locations.xlsx"
-))
+)) %>% 
+  geocode(
+    address = address,
+    method = 'cascade',
+    return_type = 'geographies',
+    unique_only = FALSE
+  ) 
 
-# add home coordinates and GEOID
-batch_size <- 10000
+# add home coordinates and GEOID ####
+
+# grab cascade for lat and long, 
+
+Addresses <- geocode(Addresses,
+                      street = street,
+                       city = city,
+                       state = state,
+                       country = country,
+                       postalcode = ZipCode,
+                       method = 'cascade',
+                       mode = 'single'
+                      )
+
+Addresses <- Addresses[Addresses$method == 'census', ] %>% 
+  geocode(Addresses,
+          street = street,
+          city = city,
+          state = state,
+          country = country,
+          postalcode = ZipCode,
+          method = 'census',
+          full_results = TRUE,
+          return_type = 'geographies',
+          mode = 'single'
+  ) %>% 
+  left_join(
+    Addresses,
+    by = c("street", "city", "country", "ZipCode")
+  )
+
+
+# then grab census data
+
+batch_size <- 1000
 
 for (section in 1:ceiling(nrow(Addresses)/batch_size)){
-  rows <- section*(1:batch_size)
+  rows <- ((section-1)*batch_size)+(1:batch_size)
   
-  Addresses[rows, ] <- 
+  returned_addresses <-
     Addresses[rows, ] %>% geocode(
     street = street,
     city = city,
@@ -393,27 +438,34 @@ for (section in 1:ceiling(nrow(Addresses)/batch_size)){
     postalcode = ZipCode,
     method = 'census',
     full_results = TRUE,
-    return_type = 'geographies',
-    unique_only = FALSE
+    return_type = 'geographies'
   )
 
+  left_join(Addresses, returned_addresses, by = c("street", 
+                                                 "city", 
+                                                 "state", 
+                                                 "ZipCode"))
+  
 }
 
-# GEOID is state_fips + county+fips + census_tract + census_block
-  mutate(
-    GEOID = get_geoid(
-      street = street,
-      city = city,
-      state = state,
-      country = country,
-      postalcode = ZipCode
-    )
-  ) %>% 
-  mutate(
-    lat = GEOID[1],
-    long = GEOID[2],
-    GEOID = GEOID[3]
+addZeroes <- function(x, places){
+  a=as.character(
+    as.numeric(x)/(10^(places))
   )
+  a <- gsub(
+    "0.(\\d*)",
+    "\\1",
+    a
+  )
+  return(a)
+}
+
+Addresses <- Addresses %>% 
+  mutate(
+    county_fips = as.character(county_fips,3)
+  )
+
+# GEOID is state_fips + county+fips + census_tract + census_block
 
 
 # compute distance traveled to SDC/EC
