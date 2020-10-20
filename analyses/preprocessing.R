@@ -14,6 +14,7 @@ library(widyr)
 library(topicmodels)
 library(tidygeocoder)
 library(readxl)
+library(tidycensus)
 
 
 # paths ####
@@ -392,20 +393,21 @@ building_coords <- read_xlsx(file.path(
 
 # add home coordinates and GEOID ####
 
-# grab cascade for lat and long, 
+Addresses <- Addresses %>% geocode(
+  street = street,
+  city = city,
+  state = state,
+  country = country,
+  postalcode = ZipCode,
+  method = 'cascade',
+  mode = 'single'
+)
 
-Addresses <- geocode(Addresses,
-                      street = street,
-                       city = city,
-                       state = state,
-                       country = country,
-                       postalcode = ZipCode,
-                       method = 'cascade',
-                       mode = 'single'
-                      )
-
-Addresses <- Addresses[Addresses$method == 'census', ] %>% 
-  geocode(Addresses,
+addresses_census <- Addresses[Addresses$geo_method == 'census', ] %>% 
+  select(
+    -c(lat, long)
+  ) %>% 
+  geocode(
           street = street,
           city = city,
           state = state,
@@ -415,62 +417,139 @@ Addresses <- Addresses[Addresses$method == 'census', ] %>%
           full_results = TRUE,
           return_type = 'geographies',
           mode = 'single'
-  ) %>% 
-  left_join(
+  )
+
+Addresses <- addresses_census %>% right_join(
     Addresses,
     by = c("street", "city", "country", "ZipCode")
   )
 
+# extract GEOID for census tract and FIPS numbers
+# GEOID is state_fips + county+fips + census_tract + census_block
 
-# then grab census data
+Addresses$entry <- c(1:nrow(Addresses))
 
-batch_size <- 1000
-
-for (section in 1:ceiling(nrow(Addresses)/batch_size)){
-  rows <- ((section-1)*batch_size)+(1:batch_size)
-  
-  returned_addresses <-
-    Addresses[rows, ] %>% geocode(
-    street = street,
-    city = city,
-    state = state,
-    country = country,
-    postalcode = ZipCode,
-    method = 'census',
-    full_results = TRUE,
-    return_type = 'geographies'
-  )
-
-  left_join(Addresses, returned_addresses, by = c("street", 
-                                                 "city", 
-                                                 "state", 
-                                                 "ZipCode"))
-  
+getgeoid <- function(x){
+  id <- Addresses$`geographies.2010 Census Blocks`[[x]]$GEOID[1]
+  if (is.null(id)){
+    return("NA")
+  } else {
+    return(id)
+  }
 }
 
-addZeroes <- function(x, places){
-  a=as.character(
-    as.numeric(x)/(10^(places))
+
+
+Addresses$geoid_block <- sapply(Addresses$rows, getgeoid)
+Addresses <- Addresses %>% 
+  mutate(
+    geoid_tract = gsub(
+      "(\\d{11}).*",
+      "\\1",
+      geoid_block
+    )
   )
-  a <- gsub(
-    "0.(\\d*)",
-    "\\1",
-    a
-  )
-  return(a)
-}
+
+Addresses <- Addresses %>% 
+  select(
+    street,
+    city,
+    state = state.x,
+    ZipCode,
+    country,
+    lat = lat.y,
+    long = long.y,
+    geo_method = geo_method.y,
+    geoid_block,
+    geoid_tract
+  ) 
 
 Addresses <- Addresses %>% 
   mutate(
-    county_fips = as.character(county_fips,3)
+    geoid_block = na_if(geoid_block, "NA"),
+    geoid_tract = na_if(geoid_block, "NA")
+  ) %>% 
+  mutate(
+    geoid_block = unlist(geoid_block), 
+    geoid_tract = unlist(geoid_tract)
+  ) %>% 
+  mutate(
+    state_fips = gsub(
+      "(\\d{2}).*",
+      "\\1",
+      geoid_block
+    ),
+    county_fips = gsub(
+      "\\d{2}(\\d{3}).*",
+      "\\1",
+      geoid_block
+    )
   )
 
-# GEOID is state_fips + county+fips + census_tract + census_block
+# add median household income data, and median home value.
+state_fips <- unique(Addresses$state_fips) %>% 
+  as.numeric() %>% na.omit()
 
+county_fips <- unique(Addresses$county_fips) %>% 
+  as.numeric() %>% na.omit()
+
+
+tract_data <- get_acs(geography = "tract", 
+                         variables = c(median_income_2018 = "B06011_001", median_home_value_2018 = "B25077_001"), 
+                         state = state_fips, 
+                         county = county_fips
+                      ) %>% 
+  select(-moe) %>% 
+  pivot_wider(
+    names_from = variable,
+    values_from = estimate
+  )
+
+tract_data$GEOID <- as.character(tract_data$GEOID)
+
+Addresses <- Addresses %>% 
+  left_join(
+    tract_data,
+    by = c("geoid_tract" = "GEOID")
+  )
+
+# combine addresses and building locations with Encounters
+df.processed %>% 
+  left_join(
+    Addresses,
+    by = c(
+      "street",
+      "city",
+      "state",
+      "ZipCode"
+    )
+  ) %>% 
+  left_join(
+    building_coords,
+    by = c(
+      
+    )
+  )
 
 # compute distance traveled to SDC/EC
 # https://www.billingsclinic.com/maps-locations/search-results/?termId=50a19986-c81c-e411-903e-2c768a4e1b84&sort=13&page=1
+get_distance <- function(lat_pt, long_pt, lat_building, long_building){
+  crs = "+proj=utm +datum=NAD83 +units=m +no_defs"
+  
+  pt <- st_point(x = c(lat_pt,long_pt))
+  building <- st_point(x = c(lat_building, long_building))
+  
+  st_crs(pt) <- crs
 
+  st_distance(
+    pt,
+   building)
+}
+
+lat_pt <- 44.83797
+long_pt <- -108.37288
+lat_building <- 47.12119
+long_building <- -104.69723
 
 
 # https://www.r-bloggers.com/2020/02/three-ways-to-calculate-distances-in-r/
