@@ -438,13 +438,13 @@ getgeoid <- function(x){
   }
 }
 
-
+Addresses$rows <- c(1:nrow(Addresses))
 
 Addresses$geoid_block <- sapply(Addresses$rows, getgeoid)
 Addresses <- Addresses %>% 
   mutate(
     geoid_tract = gsub(
-      "(\\d{11}).*",
+      "(\\d{11})\\d{4}",
       "\\1",
       geoid_block
     )
@@ -467,7 +467,7 @@ Addresses <- Addresses %>%
 Addresses <- Addresses %>% 
   mutate(
     geoid_block = na_if(geoid_block, "NA"),
-    geoid_tract = na_if(geoid_block, "NA")
+    geoid_tract = na_if(geoid_tract, "NA")
   ) %>% 
   mutate(
     geoid_block = unlist(geoid_block), 
@@ -514,84 +514,92 @@ Addresses <- Addresses %>%
   )
 
 # combine addresses and building locations with Encounters
-df.processed %>% 
+df.processed <- df.processed %>% 
   left_join(
     Addresses,
     by = c(
       "street",
       "city",
       "state",
-      "ZipCode"
+      "ZipCode",
+      "country"
     )
   ) %>% 
   left_join(
     building_coords,
-    by = c(
-      
-    )
+    by = c("Building"),
+    suffix = c("_pt", "_building")
   )
 
-# compute distance traveled to SDC/EC
+# compute distance traveled to SDC/EC and remove lat/long for pts and buildings
 # https://www.billingsclinic.com/maps-locations/search-results/?termId=50a19986-c81c-e411-903e-2c768a4e1b84&sort=13&page=1
-get_distance <- function(lat_pt, long_pt, lat_building, long_building){
-  crs = "+proj=utm +datum=NAD83 +units=m +no_defs"
-  
-  pt <- st_point(x = c(lat_pt,long_pt))
-  building <- st_point(x = c(lat_building, long_building))
-  
-  st_crs(pt) <- crs
+# get_distance <- function(lat_pt, long_pt, lat_building, long_building){
+#   
+#   distance <- raster::pointDistance(
+#     c(long_pt, lat_pt),
+#     c(long_building, lat_building),
+#     lonlat = TRUE
+#     )
+#     
+#   return(distance)
+# }
+# 
+# The below for loop is super slow. Try below options in future.
+# try distGeo() from geosphere
+# can also use Euclidian distance, sqrt((lat-lat)^2 + (long-long)^2)
 
-  st_distance(
-    pt,
-   building)
+for (index in 1:nrow(df.processed)){
+  df.processed$distance_travelled[index] <-
+    raster::pointDistance(
+      c(df.processed$long_pt[index],df.processed$lat_pt[index]),
+      c(df.processed$long_building[index], df.processed$lat_building[index]),
+      lonlat = TRUE
+    )/1000
+
 }
 
-lat_pt <- 44.83797
-long_pt <- -108.37288
-lat_building <- 47.12119
-long_building <- -104.69723
-
-
-# https://www.r-bloggers.com/2020/02/three-ways-to-calculate-distances-in-r/
-sf::st_distance()
 
 # add rucc codes - https://www.ers.usda.gov/data-products/rural-urban-continuum-codes.aspx
+rucc <- read_xls(
+  file.path(data.dir.path, "ruralurbancodes2013.xls")
+)
 
-# create wide and long data frames
-df.flat.sdc.only <- df.flat %>% 
-  select(
-    -ActiveIndicatorCD
-  ) %>% 
-  filter(
-    NurseUnit %in% SDCEC
-  )
-
-df.long <- df.processed %>% 
-  filter(
-    NurseUnit %in% SDCEC
+df.processed <- df.processed %>% 
+  mutate(
+    FIPS = paste(state_fips, county_fips, sep="")
   ) %>% 
   left_join(
-    pancake.stack$Location,
-    by = c("street", "city", "state")
+    rucc[c("FIPS", "RUCC_2013")],
+    by = "FIPS"
   )
 
 
-# MAKE WIDE AND LONG OUTPUT ####
-df.flat <- df.processed %>% 
+# bind Encounters for return variables
+
+df.processed <- df.processed %>% 
+  left_join(
+    Encounters[c("DTS", "PersonID", "EncounterID", "return_in_14",
+                 "return_Building", "return_NurseUnit", "days_to_return")],
+    by = c("PersonID", "EncounterID", "DTS")
+  ) %>% 
+  filter(
+    NurseUnit %in% SDCEC
+  )
+
+df.processed.flat <- df.processed %>% 
   group_by(
     PersonID,
     EncounterID,
     DTS
   ) %>% 
-  arrange(
-    desc(DiagnosisPrioritySEQ)
-  ) %>% 
   slice(1) %>% 
   ungroup()
 
-
-
 # write final df to file for later use. ####
 
-writexl::write_xlsx(df.flat.sdc.only,
+writexl::write_xlsx(df.processed.flat,
                     path = file.path(out.dir.path, "sdc.flat.xlsx"))
+
+writexl::write_xlsx(df.processed,
+                    path = file.path(out.dir.path, "sdc.long.xlsx"))
+
