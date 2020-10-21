@@ -586,6 +586,16 @@ df.processed <- df.processed %>%
     NurseUnit %in% SDCEC
   )
 
+df.processed <- df.processed %>% 
+  select(
+    -street,
+    -address,
+    -lat_pt,
+    -lat_building,
+    -long_pt,
+    -long_building
+  )
+
 df.processed.flat <- df.processed %>% 
   group_by(
     PersonID,
