@@ -276,6 +276,13 @@ df.processed <- df.processed %>%
 
 df.processed <- df.processed %>% 
   distinct() %>% 
+  select(
+    PersonID,
+    EncounterID,
+    DTS,
+    ICD_code,
+    DiagnosisPrioritySEQ
+  ) %>% 
   group_by(
     PersonID,
     EncounterID,
@@ -285,12 +292,105 @@ df.processed <- df.processed %>%
     desc(DiagnosisPrioritySEQ)
   ) %>% 
   mutate(
-    ICD_all = paste(ICD_code, collapse = "; "),
-    ICD_block_all = paste(ICD_block, collapse = "; "),
-    ReasonForVisit_all = paste(ReasonForVisit, collapse = "; "),
+    ICD_all = paste(ICD_code, collapse = "; ")
+  ) %>% 
+  ungroup() %>% 
+  select(
+    -c(ICD_code, DiagnosisPrioritySEQ)
+  ) %>% 
+  left_join(
+    df.processed,
+    by = c("PersonID", "EncounterID", "DTS")
+  ) %>% 
+  distinct()
+
+df.processed <- df.processed %>% 
+  distinct() %>% 
+  select(
+    PersonID,
+    EncounterID,
+    DTS,
+    ICD_block,
+    DiagnosisPrioritySEQ
+  ) %>% 
+  group_by(
+    PersonID,
+    EncounterID,
+    DTS
+  ) %>%
+  arrange(
+    desc(DiagnosisPrioritySEQ)
+  ) %>% 
+  mutate(
+    ICD_block_all = paste(ICD_block, collapse = "; ")
+  ) %>% 
+  ungroup() %>% 
+  select(
+    -c(ICD_block, DiagnosisPrioritySEQ)
+  ) %>% 
+  left_join(
+    df.processed,
+    by = c("PersonID", "EncounterID", "DTS")
+  ) %>% 
+  distinct()
+
+df.processed <- df.processed %>% 
+  select(
+    PersonID,
+    EncounterID,
+    DTS,
+    ReasonForVisit
+  ) %>% 
+  distinct() %>% 
+  filter(
+    !is.na(ReasonForVisit)
+  ) %>% 
+  group_by(
+    PersonID,
+    EncounterID,
+    DTS
+  ) %>% 
+  mutate(
+    ReasonForVisit_all = paste(ReasonForVisit, collapse = "; ")
+  ) %>% 
+  ungroup() %>% 
+  select(
+    -c(ReasonForVisit)
+  ) %>% 
+  right_join(
+    df.processed,
+    by = c("PersonID", "EncounterID", "DTS")
+  ) %>% 
+  distinct()
+
+df.processed <- df.processed %>% 
+  select(
+    PersonID,
+    EncounterID,
+    DTS,
+    DiagnosisDSC
+  ) %>% 
+  distinct() %>% 
+  filter(
+    !is.na(DiagnosisDSC)
+  ) %>% 
+  group_by(
+    PersonID,
+    EncounterID,
+    DTS
+  ) %>% 
+  mutate(
     DiagnosisDSC_all = paste(DiagnosisDSC, collapse = "; ")
   ) %>% 
-  ungroup()
+  ungroup() %>% 
+  select(
+    -c(DiagnosisDSC)
+  ) %>% 
+  right_join(
+    df.processed,
+    by = c("PersonID", "EncounterID", "DTS")
+  ) %>% 
+  distinct()
 
 # sdc/ec facilities
 SDCEC <- c(
@@ -318,7 +418,11 @@ Encounters <- df.processed %>%
     Building,
     NurseUnit,
     AdmitType,           
-    EncounterType
+    EncounterType,
+    DiagnosisDSC_all,
+    ReasonForVisit_all,
+    ICD_all,
+    ICD_block_all
   ) %>% 
   distinct() %>% 
   group_by(
@@ -340,6 +444,30 @@ Encounters <- df.processed %>%
     )
   ) %>% 
   mutate(
+    return_ICD_all = if_else(
+      PersonID == lead(PersonID) & 
+        DTS != lead(DTS),
+      lead(ICD_all),
+      NULL
+    ),
+    return_ICD_block_all = if_else(
+      PersonID == lead(PersonID) & 
+        DTS != lead(DTS),
+      lead(ICD_block_all),
+      NULL
+    ),
+    return_DiagnosisDSC_all = if_else(
+      PersonID == lead(PersonID) & 
+        DTS != lead(DTS),
+      lead(DiagnosisDSC_all),
+      NULL
+    ),
+    return_ReasonForVisit_all = if_else(
+      PersonID == lead(PersonID) & 
+        DTS != lead(DTS),
+      lead(ReasonForVisit_all),
+      NULL
+    ),
     return_Building = if_else(
       PersonID == lead(PersonID) & 
         DTS != lead(DTS),
@@ -544,7 +672,7 @@ df.processed <- df.processed %>%
 #   return(distance)
 # }
 # 
-# The below for loop is super slow. Try below options in future.
+# The below for loop is super slow (it takes ~10 hours). Try below options in future.
 # try distGeo() from geosphere
 # can also use Euclidian distance, sqrt((lat-lat)^2 + (long-long)^2)
 
@@ -578,8 +706,17 @@ df.processed <- df.processed %>%
 
 df.processed <- df.processed %>% 
   left_join(
-    Encounters[c("DTS", "PersonID", "EncounterID", "return_in_14",
-                 "return_Building", "return_NurseUnit", "days_to_return")],
+    Encounters[c("DTS", 
+                 "PersonID", 
+                 "EncounterID",
+                 "return_in_14",
+                 "return_Building", 
+                 "return_NurseUnit", 
+                 "days_to_return", 
+                 "return_DiagnosisDSC_all", 
+                 "return_ReasonForVisit_all", 
+                 "return_ICD_all", 
+                 "return_ICD_block_all")],
     by = c("PersonID", "EncounterID", "DTS")
   ) %>% 
   filter(
@@ -597,6 +734,11 @@ df.processed <- df.processed %>%
   )
 
 df.processed.flat <- df.processed %>% 
+  arrange(
+    PersonID,
+    DTS,
+    EncounterID
+  ) %>% 
   group_by(
     PersonID,
     EncounterID,
