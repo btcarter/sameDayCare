@@ -1,5 +1,5 @@
 ---
-title: "SDC/EC Rating Project"
+title: "SDC/EC Rating Project v0.2"
 author: "Benjamin T. Carter, PhD"
 date: "Generated: `r Sys.time()`"
 output: 
@@ -22,46 +22,35 @@ knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE)
 - Can we prevent this return?
 
 # Hypothesis
-1. This is the first
-2. This is the second
+1. If risk factors for readmission are present in the EHR then these can be used to stratify patients at risk of acute readmission following a visit to Same Day Care or Express Care.
 
-# Aims
-1. Identify patient encounters followed by a return within 2 weeks.
-2. Perform a descriptive analysis of these encounters.
-3. Develop a model to quantify the effect of pertinent variables.
-4. Develop an appropriate model to predict return.
-5. Report results in manuscript.
-5. Deploy model in the EHR in a medical trial.
-6. Evaluate and report deployment.
-7. Revise model and redeploy.
-7. Report results in manuscript.
+# Project Aims
+1. Develop a model.
+  1. Identify patient encounters followed by a return within 2 weeks.
+  2. Perform a descriptive analysis of these encounters.
+  3. Quantify the effect of pertinent variables.
+  4. Develop an appropriate model to predict return.
+  5. Report results in manuscript.
+2. Validate the model.
+  5. Test model in a clinical validation.
+  6. Evaluate and report deployment.
+  7. Revise model/deployment methods and redeploy.
+  7. Report results in manuscript.
 
 # Methods
 - Encounters ID'd by [SQL query](https://github.com/btcarter/sameDayCare/blob/master/analyses/2019_query.sql) in SSMS.
 - Exported to CSV
-- Flattened and return variable created by [R](https://github.com/btcarter/sameDayCare/blob/master/analyses/preprocessing.R)
-- Exploratory topic modeling on Reason for Visit (on-going) in [R via BAT](https://github.com/btcarter/sameDayCare/blob/master/analyses/nlp.R).
-- Descriptive Analysis (v0.1) with logistic model in [R](https://github.com/btcarter/sameDayCare/blob/master/analyses/eda.R).
+- Flattened, geocoded and return variables created by [R](https://github.com/btcarter/sameDayCare/blob/master/analyses/preprocessing.R)
+  - This included adding additional data from American Communities Survey, 2010 Census, and RUCC codes.
+  - Distance travelled to SDC/EC location was calculated as the geographic distance between the home address and SDC/EC facility. Street address was not retained in the final dataset, however city, state, postal code and country were retained.
+- Exploratory topic modeling on Reason for Visit in [R via BAT](https://github.com/btcarter/sameDayCare/blob/master/analyses/nlp.R).
 
-# Descriptive Analysis
-## Aims
-- How much traffic are we seeing in SDC/EC?
-- What are the top ICD-10 codes associated with a readmission?
-- Who returned?
-- What relationship does this have with our predictors?
-- Who returned more than once (frequent fliers)?
-- How many times are they coming back?
-- How often are they coming back?
-- Why are they coming back?
-- Where/who are they returning too?
-- Which sites are they coming from?
-- Can we predict return?
 
 ```{r environment}
 library(dplyr)
 library(tidyr)
 library(lubridate)
-library(icd) # for reading in ICD10 classifying information and calculating risk scores
+library(icd.data) # for reading in ICD10 classifying information and calculating risk scores also consider packages: comorbidity, icd
 library(ggplot2)
 library(compareGroups)
 
@@ -78,47 +67,92 @@ df.flat.name <- file.path(data.dir.path, "sdc.flat.xlsx")
 
 df.flat <- readxl::read_xlsx(df.flat.name)
 
-ICD <- icd10cm2019 %>% 
+ICD <- icd10cm2016 %>%
   mutate(
     code = as.character(code)
   )
 
+# clean up
+df.flat <- df.flat %>% 
+  filter(
+    !is.na(return_in_14)
+  )
+
 ```
 
-## SDC/EC Patients
+# Descriptive Analysis of All SDC/EC Encounters
 
-Overall, the population is not terribly diverse. The0 most common patient would be a WASP female walking into the Billings Downtown SDC in the fall. Some interesting trends are present though. Some refinement of variables is needed (e.g. zipcode for example). This may also reflect a need to change the methodology used by the preprocessing script (i.e. using a pivot to long rather than breaking down the variables into tables and rejoining them).
+## Data Quality
+
+```{r}
+total <- nrow(df.flat)
+completed <- complete.cases(df.flat[c(1:33)])
+sum_completed_no_geo <- sum(completed)
+
+completed <- complete.cases(df.flat[c(1:46)])
+sum_completed_geo <- sum(completed)
+
+```
+
+
+- `r total` patient encounters were identified.
+- `r sum_completed_no_geo` are considered complete cases when geographic variables are not considered.
+- Only `r sum_completed_geo` have complete geographic information.
+  - This is an estimate. A manual review might recover some cases or exclude others.
+
+<!-- ## Aims -->
+<!-- - How much traffic are we seeing in SDC/EC? -->
+<!-- - What are the top ICD-10 codes associated with a readmission? -->
+<!-- - Who returned? -->
+<!-- - What relationship does this have with our predictors? -->
+<!-- - Who returned more than once (frequent fliers)? -->
+<!-- - How many times are they coming back? -->
+<!-- - How often are they coming back? -->
+<!-- - Why are they coming back? -->
+<!-- - Where/who are they returning too? -->
+<!-- - Which sites are they coming from? -->
+<!-- - Can we predict return? -->
+
+## Table 1 - All SDC Encounters
 
 ```{r table1}
 
 df.comp <- df.flat %>% 
   mutate(
-    return_in_14 = as.factor(return_in_14)
+    return_in_14 = as.factor(return_in_14),
+    RUCC_2013 = as.factor(RUCC_2013),
+    po_box = as.factor(po_box)
   ) %>% 
   select(
     AdmitAge,
-    Marital_Status,
     Sex,
-    Building,
-    NurseUnit,
-    AdmitType,
-    DiagnosisType,
     Race,
-    Ethnicity,
-    Religion,
-    return_in_14
+    Fed_Ethnicity,
+    tribal_affil,
+    Language,
+    Marital_Status,
+    Religion_binary,
+    distance_travelled,
+    median_income_2018,
+    median_home_value_2018,
+    return_in_14,
+    Building,
+    days_to_return,
+    state,
+    RUCC_2013,
+    po_box
   )
 
 comp.obj <- compareGroups(
   return_in_14 ~ .,
   df.comp,
-  max.xlev = 55
+  max.xlev = 60
 )
 
 createTable(comp.obj, show.p.overall = FALSE, show.all = TRUE) %>% export2md(caption = "Descriptive table for demographic variables for all enounters, separated by whether the encounter was followed by a readmission within fourteen days (TRUE) or not (FALSE).")
 ```
 
-```{r timeseries}
+```{r plots}
 
 df.flat %>% 
   ggplot(
@@ -132,6 +166,38 @@ df.flat %>%
     y = "Total Visits",
     fill = "Return with 14 days",
     caption = "This graph depicts all the encounters over the period of interest."
+  )
+
+df.flat %>% 
+  ggplot(
+    aes(distance_travelled, return_in_14, color=return_in_14)
+  ) +
+  geom_boxplot(alpha = 0.7) +
+  theme_classic() +
+    scale_x_log10() +
+  labs(
+    title = "Return as a function of Distance",
+    x = "Distance travelled (km)",
+    y = "Return in 14 days?",
+    fill = "Return with 14 days",
+    caption = "How far from home did individuals travel to reach SDC/EC?"
+  )
+
+df.flat %>% 
+  ggplot(
+    aes(distance_travelled, days_to_return, color=return_in_14)
+  ) +
+  geom_jitter(alpha = 0.25) +
+  geom_smooth() +
+  theme_classic() +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    title = "Return as a function of Distance",
+    x = "Distance travelled (km)",
+    y = "Return in 14 days?",
+    fill = "Return with 14 days",
+    caption = "How far from home did individuals travel to reach SDC/EC?"
   )
 
 ```
@@ -434,25 +500,36 @@ as.data.frame(sdc.model.summary$coefficients) %>%
 
 
 
+# SDC Returns Only
 
+asdfasdfasdf
 
 
 # Next Steps
-- Add in vital signs
-- Consider adding previous LOS, days since last encounter.
+- Develop primary model, probably via XGBoost
+
+## Potential enriching data
+- Basic vital signs, medications, preexisting conditions.
+- Previous LOS, days since last encounter.
+
+## Ethical Considerations
+- What to do when the model stratifies a patient as high risk? What information do we need to guide a course of action?
+- What do we do with false positives?
+- What do we do with false negatives?
+
+## Potential other studies/comparisons
 - Consider comparison against all other primary care visits. E.g. Is there a difference in the number of single individuals accessing care between PCP's and SDC?
-- Consider using this as a case study for cleaning up how data is entered? e.g. What/where is *Same Day Care* Nurse Unit? Why are the number of buildings and Nurse Units different? Shouldn't they be the same? If not, why?
+- Consider using this as a case study for cleaning up how data is entered.
 - Consider doing a PCA to examine latent variables and correlations.
-- Add SES by street address
-- move some variable creation into preprocessing.
-- look for latent variables using PCA
-- Add nation to the EMR
-- Consider regulation of address information and differentiating between mailing and residential address. This important in terms of readiness to track disease outbreaks and public health interventions. E.g. PO Box addresses should be entered as a mailing address not a home address. 'Attn. John Doe' should be entered as the second or third line for street address. Not first.
-- How do we enter international addresses?
 - Maybe targeted interventions for minority populations, e.g. park a mobile clinic on/near a reservation at a regular time each week to facilitate care.
+- Examine demographic information on a per capita basis (e.g. returns/neighborhood population).
+
+## Data Issues
 - Chronic disease tables are terrible as is. Need to create SAM or something. How to determine? Presence of relevant ICD-10 in the past 5-10 years? Look for prescribed medications?
 - Why are some encounterID's '0'?
-
+- Consider regulation of address information and differentiating between mailing and residential address. This important in terms of readiness to track disease outbreaks and public health interventions. E.g. PO Box addresses should be entered as a mailing address not a home address. 'Attn. John Doe' should be entered as the second or third line for street address. Not first.
+- What/where is *Same Day Care* Nurse Unit? Why are the number of buildings and Nurse Units different? Shouldn't they be the same? If not, why?
+- Is 14 days really the optimal window?
 
 # Future steps
 - Deployment in medical reports
