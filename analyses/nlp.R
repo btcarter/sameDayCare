@@ -26,18 +26,18 @@ df.flat <- readxl::read_xlsx(df.flat.name)
 df.nlp <- df.flat %>% 
   select(
     EncounterID,
-    ReasonForVisit
+    ReasonForVisit_all
   )
 
 # document term matrix
 text.matrix <- df.nlp %>% 
   select(
     EncounterID,
-    ReasonForVisit
+    ReasonForVisit_all
   ) %>% 
   unnest_tokens(
     output = "word",
-    input = ReasonForVisit,
+    input = ReasonForVisit_all,
     token = "words"
   ) %>%
   anti_join(stop_words) %>% # remove meaningless words
@@ -53,11 +53,13 @@ text.matrix <- df.nlp %>%
 # for loop for multiple groups
 lda.list <- list()
 
+iterations <- c(90:110)
+
 pb <- progress_bar$new(
   format = "  Running LDA [:bar] :percent eta: :eta\n Elapsed :elapsedfull",
-  total = 200, clear = FALSE)
+  total = length(iterations), clear = FALSE)
 
-for (i in seq(1,200)*5){
+for (i in iterations){
   
   pb$tick()
   
@@ -105,7 +107,7 @@ perp.plot <- ggplot(lda.list$perp_df,
 
 
 jpeg(
-  file.path(out.dir.path, "perplexityPlot.jpeg")
+  file.path(out.dir.path, "perplexityPlot_ReasonForVisit.jpeg")
 )
 perp.plot
 dev.off()
