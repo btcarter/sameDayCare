@@ -97,6 +97,16 @@ df.processed <- df %>%
     ReasonForVisit = na_if(
       ReasonForVisit,
       "NA"
+    ),
+    Religion = if_else(
+      is.na(Religion),
+      'Unknown',
+      Religion
+    ),
+    Religion_binary = if_else(
+      Religion %in% c("Unknown", "No religious affiliation"),
+      "Undeclared",
+      "Declared"
     )
   ) %>% 
   mutate(
@@ -436,7 +446,7 @@ Encounters <- df.processed %>%
   ungroup() %>%  
   mutate(
     return_in_14 = if_else(
-      lead(unclass(DTS))-unclass(DTS) <= 14*3600 & 
+      lead(unclass(DTS))-unclass(DTS) <= 14*24*3600 & 
         PersonID == lead(PersonID) & 
         NurseUnit %in% SDCEC,
       TRUE,
@@ -483,7 +493,7 @@ Encounters <- df.processed %>%
     days_to_return = if_else(
       PersonID == lead(PersonID) & 
         DTS != lead(DTS),
-      round((lead(unclass(DTS))-unclass(DTS))/(14*3600), 1),
+      round((lead(unclass(DTS))-unclass(DTS))/(24*3600), 1),
       NULL
     )
   )
@@ -693,12 +703,26 @@ rucc <- read_xls(
 )
 
 df.processed <- df.processed %>% 
+  select(
+    DTS,
+    PersonID,
+    EncounterID,
+    state_fips,
+    county_fips
+  ) %>% 
+  fitler(
+    !is.na(state_fips)
+  ) %>% 
   mutate(
-    FIPS = paste(state_fips, county_fips, sep="")
+    FIPS = paste(state_fips, county_fips, sep="", na.omit)
   ) %>% 
   left_join(
     rucc[c("FIPS", "RUCC_2013")],
     by = "FIPS"
+  ) %>% 
+  right_join(
+    df.processed,
+    by = c("PersonID", "EncounterID", "DTS")
   )
 
 
@@ -730,7 +754,10 @@ df.processed <- df.processed %>%
     -lat_pt,
     -lat_building,
     -long_pt,
-    -long_building
+    -long_building,
+    -AppointmentID,
+    -ActiveIndicatorCD,
+    -geo_method_building
   )
 
 df.processed.flat <- df.processed %>% 
