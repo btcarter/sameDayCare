@@ -714,7 +714,7 @@ df.processed <- df.processed %>%
     !is.na(state_fips)
   ) %>% 
   mutate(
-    FIPS = paste(state_fips, county_fips, sep="", na.omit)
+    FIPS = paste(state_fips, county_fips, sep="")
   ) %>% 
   left_join(
     rucc[c("FIPS", "RUCC_2013")],
