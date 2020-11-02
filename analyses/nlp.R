@@ -53,7 +53,7 @@ text.matrix <- df.nlp %>%
 # for loop for multiple groups
 lda.list <- list()
 
-iterations <- c(90:110)
+iterations <- c(2,c(1:9)*10,c(90:110))
 
 pb <- progress_bar$new(
   format = "  Running LDA [:bar] :percent eta: :eta\n Elapsed :elapsedfull",
@@ -84,11 +84,11 @@ for (i in iterations){
   
   name <- paste("run_", i, sep = "")
   
-  # lda.list[[name]] <- list(
-  #   "lda" = text.lda,
-  #   "betas" = text.betas,
-  #   "gammas" = text.gammas
-  # )
+  lda.list[[name]] <- list(
+    "lda" = text.lda,
+    "betas" = text.betas,
+    "gammas" = text.gammas
+  )
   
   lda.list$perplexity <- data.frame("k" = integer(),
                                     "perplexity" = numeric())
@@ -113,5 +113,5 @@ perp.plot
 dev.off()
 
 
-# saveRDS(lda.list,
-#         file = file.path(out.dir.path, "ldaList.rds"))
+saveRDS(lda.list,
+        file = file.path(out.dir.path, "ldaList.rds"))
