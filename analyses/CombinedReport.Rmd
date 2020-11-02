@@ -1,0 +1,18 @@
+---
+title: "The Same Day Care Report"
+author: "Benjamin T. Carter, PhD"
+date: "Generated: `r Sys.time()`"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+---
+
+```{r child = 'chapter1.Rmd'}
+```
+
+```{r child='chapter2.Rmd'}
+```
+
+
