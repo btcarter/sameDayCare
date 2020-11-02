@@ -168,38 +168,6 @@ df.flat %>%
     caption = "This graph depicts all the encounters over the period of interest."
   )
 
-df.flat %>% 
-  ggplot(
-    aes(distance_travelled, return_in_14, color=return_in_14)
-  ) +
-  geom_boxplot(alpha = 0.7) +
-  theme_classic() +
-    scale_x_log10() +
-  labs(
-    title = "Return as a function of Distance",
-    x = "Distance travelled (km)",
-    y = "Return in 14 days?",
-    fill = "Return with 14 days",
-    caption = "How far from home did individuals travel to reach SDC/EC?"
-  )
-
-df.flat %>% 
-  ggplot(
-    aes(distance_travelled, days_to_return, color=return_in_14)
-  ) +
-  geom_jitter(alpha = 0.25) +
-  geom_smooth() +
-  theme_classic() +
-  scale_x_log10() +
-  scale_y_log10() +
-  labs(
-    title = "Return as a function of Distance",
-    x = "Distance travelled (km)",
-    y = "Return in 14 days?",
-    fill = "Return with 14 days",
-    caption = "How far from home did individuals travel to reach SDC/EC?"
-  )
-
 ```
 
 
@@ -362,6 +330,30 @@ print(CatChiList)
 
 ```
 
+
+## Continuous Variables
+
+```{r}
+
+df.flat %>% 
+  ggplot(
+    aes(distance_travelled, return_in_14, color=return_in_14)
+  ) +
+  geom_boxplot(alpha = 0.7) +
+  theme_classic() +
+    scale_x_log10() +
+  labs(
+    title = "Return as a function of Distance",
+    x = "Distance travelled (km)",
+    y = "Return in 14 days?",
+    fill = "Return with 14 days",
+    caption = "How far from home did individuals travel to reach SDC/EC?"
+  )
+
+```
+
+
+
 ## ICD-10 Codes
 
 ```{r icd10}
@@ -451,6 +443,20 @@ top50
 
 ```
 
+
+## Geography | Where are they from?
+
+```{r}
+
+df.flat %>% 
+  filter(
+    return_in_14 == TRUE
+  )
+
+```
+
+
+
 ## Logistic Model | Quantifying Effect Size
 
 ```{r logisticModel}
@@ -507,15 +513,16 @@ asdfasdfasdf
 
 # Next Steps
 - Develop primary model, probably via XGBoost
+- Also consider sequence/[association mining](https://www.r-bloggers.com/2020/10/sequence-mining-my-browsing-history-with-arulessequences/?__twitter_impression=true "This is just a link to a walkthrough").
 
-## Potential enriching data
-- Basic vital signs, medications, preexisting conditions.
+## Potentially enriching data to add.
+- Basic vital signs, Rx, preexisting conditions.
 - Previous LOS, days since last encounter.
 
 ## Ethical Considerations
 - What to do when the model stratifies a patient as high risk? What information do we need to guide a course of action?
-- What do we do with false positives?
-- What do we do with false negatives?
+- What do we do with false positives? Financial repercussions?
+- What do we do with false negatives? Liability?
 
 ## Potential other studies/comparisons
 - Consider comparison against all other primary care visits. E.g. Is there a difference in the number of single individuals accessing care between PCP's and SDC?
