@@ -84,6 +84,7 @@ tribes <- c("Chippewa",
 
 df.processed <- df %>% 
   mutate(
+    ReasonForVisit = tolower(ReasonForVisit),
     Race = gsub(
       "^\\s.*",
       "Not Obtained",
