@@ -532,104 +532,109 @@ building_coords <- read_xlsx(file.path(
 
 # add home coordinates and GEOID ####
 
-Addresses <- Addresses %>% geocode(
-  street = street,
-  city = city,
-  state = state,
-  country = country,
-  postalcode = ZipCode,
-  method = 'cascade',
-  mode = 'single'
-)
+# get_geo <- function(x){
+#   URL <- paste("https://geocoding.geo.census.gov/geocoder/geographies/address?street=",
+#         street,"4600+Silver+Hill+Rd"
+#         "&city=",
+#         city,
+#         "&state=",
+#         state,
+#         "&benchmark=Public_AR_Census2010&vintage=Census2010_Census2010&layers=14&format=json")
+#   info <- jsonlite::read_json(path = URL, simplifyVector = TRUE)
+#   census_block,
+#   fips
+#   lat
+#   long
+# }
 
-addresses_census <- Addresses[Addresses$geo_method == 'census', ] %>% 
-  select(
-    -c(lat, long)
-  ) %>% 
-  geocode(
-          street = street,
-          city = city,
-          state = state,
-          country = country,
-          postalcode = ZipCode,
-          method = 'census',
-          full_results = TRUE,
-          return_type = 'geographies',
-          mode = 'single'
-  )
+ROWS <- nrow(Addresses)
+group_size <- 5000
+iters <- ROWS/group_size
+Addresses_geocoded <- data.frame()
 
-Addresses <- addresses_census %>% right_join(
-    Addresses,
-    by = c("street", "city", "country", "ZipCode")
-  )
-
-# extract GEOID for census tract and FIPS numbers
-# GEOID is state_fips + county+fips + census_tract + census_block
-
-Addresses$entry <- c(1:nrow(Addresses))
-
-getgeoid <- function(x){
-  id <- Addresses$`geographies.2010 Census Blocks`[[x]]$GEOID[1]
-  if (is.null(id)){
-    return("NA")
-  } else {
-    return(id)
-  }
+for (i in 1:iters){
+  range <- (i*group_size-group_size)+(1:group_size)
+  Addresses_geocoded <- Addresses[c(range),] %>%
+    geocode(
+      street = street,
+      city = city,
+      state = state,
+      country = country,
+      postalcode = ZipCode,
+      method = 'census',
+      full_results = TRUE,
+      return_type = 'geographies',
+      unique_only = FALSE
+    ) %>% 
+    rbind(Addresses_geocoded)
+  
+  Sys.sleep(3)
 }
 
-Addresses$rows <- c(1:nrow(Addresses))
+range <- c(nrow(Addresses_geocoded):nrow(Addresses))
+Addresses_geocoded <- Addresses[c(range),] %>%
+  geocode(
+    street = street,
+    city = city,
+    state = state,
+    country = country,
+    postalcode = ZipCode,
+    method = 'census',
+    full_results = TRUE,
+    return_type = 'geographies'
+  ) %>% 
+  rbind(Addresses_geocoded)
 
-Addresses$geoid_block <- sapply(Addresses$rows, getgeoid)
-Addresses <- Addresses %>% 
-  mutate(
-    geoid_tract = gsub(
-      "(\\d{11})\\d{4}",
-      "\\1",
-      geoid_block
-    )
+Addresses_geocoded <- Addresses_geocoded %>% 
+  filter(
+    !(street %in% c("NA  ", "UNKNOWN", "UNKNOWN ", "UPDATE "))
   )
 
-Addresses <- Addresses %>% 
-  select(
-    street,
-    city,
-    state = state.x,
-    ZipCode,
-    country,
-    lat = lat.y,
-    long = long.y,
-    geo_method = geo_method.y,
-    geoid_block,
-    geoid_tract
+# make GEOID for census tract and FIPS numbers
+# GEOID is state_fips (2 digits) + county_fips (3 digits) 
+# + census_tract (6 digits) + census_block (4 digits)
+
+add_zeros <- function(x, z){
+  n <- nchar(x)
+    while(n<z){
+      x <- paste("0", x, sep="")
+      n <- nchar(x)
+    }
+    return(x)
+}
+
+Addresses_geocoded <- Addresses_geocoded %>% 
+  filter(
+    !is.na(state_fips)
+  ) %>% 
+  mutate(
+    state_fips = as.character(state_fips),
+    county_fips = as.character(county_fips),
+    census_tract = as.character(census_tract),
+    census_block = as.character(census_block)
   ) 
 
-Addresses <- Addresses %>% 
+Addresses_geocoded$state_fips <- 
+  sapply(Addresses_geocoded$state_fips, add_zeros, z=2)
+Addresses_geocoded$county_fips <- 
+  sapply(Addresses_geocoded$county_fips, add_zeros, z=3)
+Addresses_geocoded$census_tract <- 
+  sapply(Addresses_geocoded$census_tract, add_zeros, z=6)
+Addresses_geocoded$census_block <- 
+  sapply(Addresses_geocoded$census_block, add_zeros, z=4)
+
+
+Addresses_geocoded <- Addresses_geocoded %>% 
   mutate(
-    geoid_block = na_if(geoid_block, "NA"),
-    geoid_tract = na_if(geoid_tract, "NA")
-  ) %>% 
-  mutate(
-    geoid_block = unlist(geoid_block), 
-    geoid_tract = unlist(geoid_tract)
-  ) %>% 
-  mutate(
-    state_fips = gsub(
-      "(\\d{2}).*",
-      "\\1",
-      geoid_block
-    ),
-    county_fips = gsub(
-      "\\d{2}(\\d{3}).*",
-      "\\1",
-      geoid_block
-    )
+    geoid_block = paste(state_fips, county_fips, census_tract, census_block,sep = ""),
+    geoid_tract = paste(state_fips, county_fips, census_tract,sep = "")
   )
 
 # add median household income data, and median home value.
-state_fips <- unique(Addresses$state_fips) %>% 
+state_fips <- unique(Addresses_geocoded$state_fips) %>% 
   as.numeric() %>% na.omit()
 
-county_fips <- unique(Addresses$county_fips) %>% 
+county_fips <- unique(Addresses_geocoded$county_fips) %>% 
   as.numeric() %>% na.omit()
 
 
@@ -646,16 +651,29 @@ tract_data <- get_acs(geography = "tract",
 
 tract_data$GEOID <- as.character(tract_data$GEOID)
 
-Addresses <- Addresses %>% 
+Addresses_geocoded <- Addresses_geocoded %>% 
   left_join(
     tract_data,
     by = c("geoid_tract" = "GEOID")
   )
 
-# combine addresses and building locations with Encounters
-df.processed <- df.processed %>% 
+# combine addresses and building locations with Encounters for both SDC and return locations
+
+Encounters.geocoded <- Encounters %>% 
   left_join(
-    Addresses,
+    building_coords,
+    by = "Building"
+  ) %>% 
+  left_join(
+    building_coords,
+    by = c("return_Building" = "Building"),
+    suffix = c("_sdc", "_return")
+  )
+
+# add participant addresses
+df.processed.geocoded <- df.processed %>% 
+  left_join(
+    Addresses_geocoded,
     by = c(
       "street",
       "city",
@@ -665,9 +683,30 @@ df.processed <- df.processed %>%
     )
   ) %>% 
   left_join(
-    building_coords,
-    by = c("Building"),
-    suffix = c("_pt", "_building")
+    Encounters.geocoded[c("PersonID",
+                          "EncounterID",
+                          "DTS",
+                          "Building",
+                          "NurseUnit",
+                          "return_in_14",
+                          "return_ICD_all",
+                          "return_ICD_block_all",
+                          "return_DiagnosisDSC_all",
+                          "return_ReasonForVisit_all",
+                          "return_Building",
+                          "return_NurseUnit",
+                          "days_to_return",
+                          "lat_sdc",
+                          "long_sdc",
+                          "lat_return",
+                          "long_return")],
+    by = c("PersonID", "EncounterID", "DTS", "NurseUnit", "Building")
+  ) %>% 
+  select(
+    -c(input_address, match_indicator, match_type, matched_address, tiger_line_id, tiger_side)
+  ) %>% 
+  filter(
+    NurseUnit %in% SDCEC
   )
 
 # compute distance traveled to SDC/EC and remove lat/long for pts and buildings
@@ -687,23 +726,30 @@ df.processed <- df.processed %>%
 # try distGeo() from geosphere
 # can also use Euclidian distance, sqrt((lat-lat)^2 + (long-long)^2)
 
-for (index in 1:nrow(df.processed)){
-  df.processed$distance_travelled[index] <-
-    raster::pointDistance(
-      c(df.processed$long_pt[index],df.processed$lat_pt[index]),
-      c(df.processed$long_building[index], df.processed$lat_building[index]),
-      lonlat = TRUE
-    )/1000
+# for (index in 1:nrow(df.processed)){
+#   df.processed$distance_travelled[index] <-
+#     raster::pointDistance(
+#       c(df.processed$long_pt[index],df.processed$lat_pt[index]),
+#       c(df.processed$long_building[index], df.processed$lat_building[index]),
+#       lonlat = TRUE
+#     )/1000
+# 
+# }
 
-}
+# Euclidian distance between locations
 
+df.processed.geocoded <- df.processed.geocoded %>% 
+  mutate(
+    dist_eu_pt_sdc = sqrt((lat-lat_sdc)^2 + (long-long_sdc)^2),
+    dist_eu_pt_return = sqrt((lat-lat_return)^2 + (long-long_return)^2)
+  )
 
 # add rucc codes - https://www.ers.usda.gov/data-products/rural-urban-continuum-codes.aspx
 rucc <- read_xls(
   file.path(data.dir.path, "ruralurbancodes2013.xls")
 )
 
-df.processed <- df.processed %>% 
+df.processed.geocoded <- df.processed.geocoded %>% 
   select(
     DTS,
     PersonID,
@@ -711,7 +757,7 @@ df.processed <- df.processed %>%
     state_fips,
     county_fips
   ) %>% 
-  fitler(
+  filter(
     !is.na(state_fips)
   ) %>% 
   mutate(
@@ -722,46 +768,25 @@ df.processed <- df.processed %>%
     by = "FIPS"
   ) %>% 
   right_join(
-    df.processed,
-    by = c("PersonID", "EncounterID", "DTS")
+    df.processed.geocoded,
+    by = c("PersonID", "EncounterID", "DTS", "state_fips", "county_fips")
   )
 
-
-# bind Encounters for return variables
-
-df.processed <- df.processed %>% 
-  left_join(
-    Encounters[c("DTS", 
-                 "PersonID", 
-                 "EncounterID",
-                 "return_in_14",
-                 "return_Building", 
-                 "return_NurseUnit", 
-                 "days_to_return", 
-                 "return_DiagnosisDSC_all", 
-                 "return_ReasonForVisit_all", 
-                 "return_ICD_all", 
-                 "return_ICD_block_all")],
-    by = c("PersonID", "EncounterID", "DTS")
-  ) %>% 
-  filter(
-    NurseUnit %in% SDCEC
-  )
-
-df.processed <- df.processed %>% 
+# deidentify
+df.processed.geocoded <- df.processed.geocoded %>% 
   select(
     -street,
-    -address,
-    -lat_pt,
-    -lat_building,
-    -long_pt,
-    -long_building,
+    -lat,
+    -lat_sdc,
+    -long,
+    -long_sdc,
+    -lat_return,
+    -long_return,
     -AppointmentID,
-    -ActiveIndicatorCD,
-    -geo_method_building
+    -ActiveIndicatorCD
   )
 
-df.processed.flat <- df.processed %>% 
+df.processed.flat <- df.processed.geocoded %>% 
   arrange(
     PersonID,
     DTS,
@@ -780,6 +805,6 @@ df.processed.flat <- df.processed %>%
 writexl::write_xlsx(df.processed.flat,
                     path = file.path(out.dir.path, "sdc.flat.xlsx"))
 
-writexl::write_xlsx(df.processed,
+writexl::write_xlsx(df.processed.geocoded,
                     path = file.path(out.dir.path, "sdc.long.xlsx"))
 
