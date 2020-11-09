@@ -1,6 +1,6 @@
 ---
 title: "The Same Day Care Report"
-author: "Benjamin T. Carter, PhD"
+author: "Benjamin T. Carter, Ph, CSI, Billings Clinic"
 date: "Generated: `r Sys.time()`"
 output: 
   html_document:
@@ -9,10 +9,45 @@ output:
     toc_float: true
 ---
 
-```{r child = 'chapter1.Rmd'}
+This is a global report of all parts of the SDC project.
+
+<!-- # Descriptive analysis -->
+<!-- ```{r Descriptives child='descriptiveAnalysis.Rmd'} -->
+<!-- ``` -->
+
+# NLP & Predicting return from Reason for Visit
+```{r NLP}
+out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
+                          "CSI & David Hedges - Same Day Care Project", "data")
+
+lda.model <- readRDS(file = file.path(out.dir.path, "lda.model.rds"))
+
+# lda.model <- readRDS(file = file.choose())
 ```
 
-```{r child='chapter2.Rmd'}
+![Perplexity Plot Plot](C:\Users\CarteB\BILLINGS CLINIC\CSI & David Hedges - Same Day Care Project\R\analyses\perplexityPlot_ReasonForVisit.jpeg)
+
+A Latent Dirichlet Analysis was used for exploratory topic modelling. There appear to be approximately 100 different categories for reasons for visit to SDC/EC. The lowest perplexity score was achieved with 97 different groups.
+
+```{r gammaPlots}
+
+
+
 ```
 
+
+# Sequence and Association Mining
+
+## Status: In Progress
+
+## What is it?
+
+Sequence and Association mining are methods by which events are queried to determine if there is a correlation between them. Sequence mining considers the temporal order of events while association mining is agnoistic to temporal order.
+```{r}
+```
+
+
+# XGBoost and opening the black box
+```{r child='ML.Rmd'}
+```
 
