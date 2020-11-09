@@ -53,10 +53,11 @@ text.matrix <- df.nlp %>%
 # for loop for multiple groups
 lda.list <- list()
 
-iterations <- c(2,c(1:9)*10,c(90:110))
+iterations <- c(2,c(1:8)*10,c(90:110))
+iterations <- iterations[sample(1:length(iterations))]
 
 pb <- progress_bar$new(
-  format = "  Running LDA [:bar] :percent eta: :eta\n Elapsed :elapsedfull",
+  format = "  Running LDA [:bar] :percent eta: :eta Elapsed :elapsedfull",
   total = length(iterations), clear = FALSE)
 
 for (i in iterations){
@@ -96,7 +97,7 @@ for (i in iterations){
                         "perplexity" = text.perplexity)
   
   lda.list$perp_df <- rbind(lda.list$perp_df, df.perp)
-  print(lda.list$perp_df) # can comment this line out if you want.
+  # print(lda.list$perp_df) # can comment this line out if you want.
   
 }
 
@@ -112,6 +113,13 @@ jpeg(
 perp.plot
 dev.off()
 
+# save the LDA with the smallest perplexity
+lowest <- lda.list$perp_df %>% 
+  slice_min(perplexity)
 
-saveRDS(lda.list,
-        file = file.path(out.dir.path, "ldaList.rds"))
+low_k <- lowest[1,1]
+
+lowest.model <- lda.list[[paste("run_",low_k,sep="")]]
+
+saveRDS(lowest.model,
+        file = file.path(out.dir.path, "lda.model.rds"))
