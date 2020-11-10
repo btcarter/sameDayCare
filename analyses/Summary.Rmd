@@ -1,0 +1,41 @@
+---
+title: "summary"
+author: "Benjamin Carter"
+date: "11/9/2020"
+output: html_document
+---
+
+# Next Steps
+Topic Modelling reason for visit. Could this alone be used to predict return?
+- Develop primary model, probably via XGBoost
+- Also consider [association rules](https://towardsdatascience.com/association-rule-mining-in-r-ddf2d044ae50) or [sequence mining](https://www.r-bloggers.com/2020/10/sequence-mining-my-browsing-history-with-arulessequences/?__twitter_impression=true "This is just a link to a walkthrough").
+
+
+## Potentially enriching data to add.
+- Basic vital signs, Rx, preexisting conditions.
+- Previous LOS, days since last encounter.
+- PCP flag, specialty
+- Count for SDC appoitnments in the past year
+
+## Ethical Considerations
+- What to do when the model stratifies a patient as high risk? What information do we need to guide a course of action?
+- What do we do with false positives? Financial repercussions?
+- What do we do with false negatives? Liability?
+
+## Potential other studies/comparisons
+- Consider comparison against all other primary care visits. E.g. Is there a difference in the number of single individuals accessing care between PCP's and SDC?
+- Consider using this as a case study for cleaning up how data is entered.
+- Consider doing a PCA to examine latent variables and correlations.
+- Maybe targeted interventions for minority populations, e.g. park a mobile clinic on/near a reservation at a regular time each week to facilitate care.
+- Examine demographic information on a per capita basis (e.g. returns/neighborhood population).
+
+## Data Issues
+- Chronic disease tables are terrible as is. Need to create SAM or something. How to determine? Presence of relevant ICD-10 in the past 5-10 years? Look for prescribed medications?
+- Why are some encounterID's '0'?
+- Consider regulation of address information and differentiating between mailing and residential address. This important in terms of readiness to track disease outbreaks and public health interventions. E.g. PO Box addresses should be entered as a mailing address not a home address. 'Attn. John Doe' should be entered as the second or third line for street address. Not first.
+- What/where is *Same Day Care* Nurse Unit? Why are the number of buildings and Nurse Units different? Shouldn't they be the same? If not, why?
+- Is 14 days really the optimal window?
+
+# Future steps
+- Deployment in medical reports
+- Blinded trials
