@@ -8,6 +8,7 @@ library(mltools) # library for encoding?
 library(xgboost)
 library(dplyr)
 library(caret)
+library(icd.data)
 
   # paths
 data.dir.path <- file.path("C:",
@@ -25,8 +26,14 @@ out.dir.path <- file.path("C:",
                           "results")
 
   # data
+ICD <- icd10cm2016 %>% # icd codes
+  mutate(
+    code = as.character(code)
+  )
 
-df.name <- file.path(data.dir.path, "sdc.long.xlsx")
+tops <- readRDS(file = file.path(data.dir.path, "lda.model.rds")) # topic modeling
+
+df.name <- file.path(data.dir.path, "sdc.flat.xlsx")
 
 df <- readxl::read_xlsx(df.name)
 
@@ -36,12 +43,11 @@ df <- df %>%
   ) %>% 
   select(
     -c(ICD, 
-       ICD_code, 
        ICD_block, 
        ICD_all, 
        ICD_block_all, 
        NAME, 
-       Fed_Ethnicity,
+       BC_Ethnicity,
        city,
        state,
        ZipCode,
@@ -64,7 +70,6 @@ df <- df %>%
        dist_eu_pt_return,
        id,
        FIPS,
-       EncounterID,
        PersonID,
        DTS,
        state_fips,
@@ -73,9 +78,39 @@ df <- df %>%
        return_ReasonForVisit_all,
        geoid_tract,
        country,
-       Religion)
+       Religion,
+       Fed_Ethnicity,
+       po_box)
+  ) %>% 
+  left_join(
+    ICD,
+    by = c("ICD_code" = "code")
+  ) %>% 
+  mutate(
+    EncounterID = as.character(EncounterID)
+  ) %>% 
+  left_join(
+    tops$gammas,
+    by = c("EncounterID" = "document")
+  ) %>%
+  select(
+    -c(
+      EncounterID,
+      ICD_code,
+      billable,
+      short_desc,
+      long_desc,
+      three_digit,
+      major,
+      sub_chapter,
+      gamma
+    )
+  ) %>%
+  mutate(
+    topic = as.character(topic)
   )
 
+columns <- colnames(df)
 
 # One-hot encoding ####
 
@@ -107,6 +142,33 @@ newdata <- data.frame(predict(dummy, newdata = df))
 # # save the output for insertion in report ####
 
 df <- newdata
+
+# correlations
+
+# var.list <- colnames(df)
+# var.list <- var.list[var.list != "return_in_14"]
+# 
+# res.df <- data.frame()
+# 
+# for (var in var.list){
+#   Test <- cor.test(x = df$return_in_14, y = df[[var]])
+#   
+#   res <- data.frame("variable" = var,
+#                     "R2" = Test$estimate,
+#                     "p.val" = Test$p.value)
+#   res.df <- rbind(res.df, res)
+# }
+# 
+# 
+# top_50 <- res.df %>% slice_min(p.val, n = 50)
+# top_50 <- top_50$variable
+# 
+# 
+# df <- df %>% 
+#   select(top_50, return_in_14)
+
+
+
 
 # David's code ####
 
@@ -167,12 +229,15 @@ y_test <- as.matrix(y_test)
 xg.model <- xgboost(
   data = X_train,
   label = y_train,
-  max.depth = 10,
-  eta = 0.1,
+  max.depth = 5,
+  eta = 0.05,
   # nthread = 2,
-  nrounds = 30,
+  nrounds = 1000,
+  early_stopping_rounds = 50,
   objective = "binary:logistic",
-  eval_metric = 'auc'
+  eval_metric = 'auc',
+  gamma = 10,
+  min_child_weight = 10
 )
 
 # evaluate
@@ -201,11 +266,39 @@ acc_ROCR
 
 # take a peak at deciding factors
 mat <- xgb.importance(feature_names=colnames(X_train), model=xg.model)
-xgb.plot.importance (importance_matrix = mat[1:32])
+# xgb.plot.importance (importance_matrix = mat[1:32])
 
+# plotting factors by importance
+library(ggplot2)
+mat.plot <- as.data.frame(mat)
 
+mat.plot$Feature <- factor(mat.plot$Feature,
+                           levels = mat.plot$Feature[order(mat.plot$Gain,
+                                                           decreasing = FALSE)])
 
+mat.plot %>% 
+  ggplot(aes(Feature, Gain)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  theme_classic()
 
-
-
-
+## compare to a simple logistic model
+# log.mod <- glm(y_train ~ X_train, df,
+#     family = "binomial")
+# 
+# pred.res <- predict(log.mod, as.data.frame(X_test))
+# 
+# # evaluate
+# pred_prob_train <- predict(log.mod, as.data.frame(X_train))
+# pred_prob_test <- predict(log.mod, as.data.frame(X_test))
+# 
+# # AUC
+# library(ROCR)
+# pred_ROCR <- prediction(pred_prob_train, y_train[,1])
+# auc_ROCR <- performance(pred_ROCR, measure = 'auc')
+# auc_ROCR <- auc_ROCR@y.values[[1]]
+# auc_ROCR
+# pred_ROCR <- prediction(pred_prob_test, y_test[,1])
+# auc_ROCR <- performance(pred_ROCR, measure = 'auc')
+# auc_ROCR <- auc_ROCR@y.values[[1]]
+# auc_ROCR
