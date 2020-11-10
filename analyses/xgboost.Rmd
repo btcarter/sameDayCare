@@ -1,6 +1,20 @@
-# This is a script for the ML portion of the SDC project
-# Author: Benjamin T. Carter, PhD
+---
+title: "XGBoost"
+author: "Benjamin T. Carter, PhD, CSI, Billings Clinic"
+date: "Generated: `r Sys.time()`"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+    fig_width: 6
+    fig_height: 12
+params:
+  respVar: "return_in_14"
+  d.frame: "did you forget me?"
+---
 
+```{r data}
 # ENVIRONMENT ####
 
 # packages
@@ -33,11 +47,7 @@ ICD <- icd10cm2016 %>% # icd codes
 
 tops <- readRDS(file = file.path(data.dir.path, "lda.model.rds")) # topic modeling
 
-df.name <- file.path(data.dir.path, "sdc.flat.xlsx")
-
-df <- readxl::read_xlsx(df.name)
-
-df <- df %>% 
+df <- params$d.frame %>% 
   mutate(
     return_in_14 = as.numeric(return_in_14)
   ) %>% 
@@ -116,60 +126,43 @@ columns <- colnames(df)
 
 dummy <- dummyVars(" ~ .", data=df)
 newdata <- data.frame(predict(dummy, newdata = df))
-
-
-
-# # xgboost ####
-# 
-#   # test and training data & labels
-# test <- list()
-# 
-# train <- list()
-# 
-#   # train model
-# xg.model <- xgboost(
-#   data = train$data,
-#   label = train$label,
-#   max.depth = 2,
-#   eta = 1,
-#   nthread = 2,
-#   nrounds = 2,
-#   objective = "binary:logistic"
-# )
-# 
-#   # test model
-# 
-# # save the output for insertion in report ####
-
 df <- newdata
 
-# correlations
+```
 
-# var.list <- colnames(df)
-# var.list <- var.list[var.list != "return_in_14"]
-# 
-# res.df <- data.frame()
-# 
-# for (var in var.list){
-#   Test <- cor.test(x = df$return_in_14, y = df[[var]])
-#   
-#   res <- data.frame("variable" = var,
-#                     "R2" = Test$estimate,
-#                     "p.val" = Test$p.value)
-#   res.df <- rbind(res.df, res)
-# }
-# 
-# 
-# top_50 <- res.df %>% slice_min(p.val, n = 50)
-# top_50 <- top_50$variable
-# 
-# 
-# df <- df %>% 
-#   select(top_50, return_in_14)
+# Correlations between variables
 
 
+```{r correlations}
+
+var.list <- colnames(df)
+var.list <- var.list[var.list != "return_in_14"]
+
+res.df <- data.frame()
+
+for (var in var.list){
+  Test <- cor.test(x = df$return_in_14, y = df[[var]])
+
+  res <- data.frame("variable" = var,
+                    "R2" = Test$estimate,
+                    "p.val" = Test$p.value)
+  res.df <- rbind(res.df, res)
+}
 
 
+top_50 <- res.df %>% slice_min(p.val, n = 50)
+top_50 <- top_50$variable
+
+
+df <- df %>%
+  select(top_50, return_in_14)
+
+
+```
+
+# Gradient Boosting
+
+```{r boosting}
 # David's code ####
 
 # Balance the Dataset
@@ -277,28 +270,37 @@ mat.plot$Feature <- factor(mat.plot$Feature,
                                                            decreasing = FALSE)])
 
 mat.plot %>% 
+  slice_max(10) %>% 
   ggplot(aes(Feature, Gain)) +
   geom_bar(stat = "identity") +
   coord_flip() +
   theme_classic()
+```
 
-## compare to a simple logistic model
-# log.mod <- glm(y_train ~ X_train, df,
-#     family = "binomial")
-# 
-# pred.res <- predict(log.mod, as.data.frame(X_test))
-# 
-# # evaluate
-# pred_prob_train <- predict(log.mod, as.data.frame(X_train))
-# pred_prob_test <- predict(log.mod, as.data.frame(X_test))
-# 
-# # AUC
-# library(ROCR)
-# pred_ROCR <- prediction(pred_prob_train, y_train[,1])
-# auc_ROCR <- performance(pred_ROCR, measure = 'auc')
-# auc_ROCR <- auc_ROCR@y.values[[1]]
-# auc_ROCR
-# pred_ROCR <- prediction(pred_prob_test, y_test[,1])
-# auc_ROCR <- performance(pred_ROCR, measure = 'auc')
-# auc_ROCR <- auc_ROCR@y.values[[1]]
-# auc_ROCR
+
+# Logistic model
+
+```{r logisticModel}
+
+# compare to a simple logistic model
+log.mod <- glm(y_train ~ X_train, df,
+    family = "binomial")
+
+pred.res <- predict(log.mod, as.data.frame(X_test))
+
+# evaluate
+pred_prob_train <- predict(log.mod, as.data.frame(X_train))
+pred_prob_test <- predict(log.mod, as.data.frame(X_test))
+
+# AUC
+library(ROCR)
+pred_ROCR <- prediction(pred_prob_train, y_train[,1])
+auc_ROCR <- performance(pred_ROCR, measure = 'auc')
+auc_ROCR <- auc_ROCR@y.values[[1]]
+auc_ROCR
+pred_ROCR <- prediction(pred_prob_test, y_test[,1])
+auc_ROCR <- performance(pred_ROCR, measure = 'auc')
+auc_ROCR <- auc_ROCR@y.values[[1]]
+auc_ROCR
+
+```
