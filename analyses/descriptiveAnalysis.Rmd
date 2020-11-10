@@ -1,5 +1,5 @@
 ---
-title: "SDC/EC Rating Project v0.2"
+title: "Descriptive Analysis v0.2"
 author: "Benjamin T. Carter, PhD"
 date: "Generated: `r Sys.time()`"
 output: 
@@ -7,6 +7,8 @@ output:
     code_folding: hide
     toc: true
     toc_float: true
+    fig_width: 6
+    fig_height: 12
 ---
 
 ```{r include=FALSE}
@@ -103,8 +105,6 @@ df.flat <- df.flat %>%
 
 ```
 
-# Descriptive Analysis of All SDC/EC Encounters
-
 ## Data Quality
 
 ```{r}
@@ -136,7 +136,9 @@ sum_completed_geo <- sum(completed)
 <!-- - Which sites are they coming from? -->
 <!-- - Can we predict return? -->
 
-## Table 1 - All SDC Encounters
+# Overview
+
+## Table 1 - All Encounters
 
 ```{r table1}
 
@@ -158,8 +160,7 @@ df.comp <- df.flat %>%
     Religion_binary,
     median_income_2018,
     median_home_value_2018,
-    return_in_14,
-    return_in_14_sdc,
+    return_types,
     Building,
     days_to_return,
     RUCC_2013,
@@ -169,16 +170,16 @@ df.comp <- df.flat %>%
   )
 
 comp.obj <- compareGroups(
-  return_in_14 ~ .,
+  return_types ~ .,
   df.comp,
   max.xlev = 60
 )
 
 createTable(comp.obj, show.p.overall = FALSE, show.all = TRUE) %>% export2md(caption = "Descriptive table for demographic variables for all enounters, separated by whether the encounter was followed by a readmission within fourteen days (TRUE) or not (FALSE).")
 
-comp.obj <- compareGroups(return_in_14_sdc ~. -return_in_14, df.comp)
-
-createTable(comp.obj, show.p.overall = FALSE, show.all = TRUE) %>% export2md(caption = "Descriptive table for demographic variables for all enounters, separated by whether the encounter was followed by an encounter at Same Day Care within 14 days.")
+# comp.obj <- compareGroups(return_in_14_sdc ~. -return_in_14, df.comp)
+# 
+# createTable(comp.obj, show.p.overall = FALSE, show.all = TRUE) %>% export2md(caption = "Descriptive table for demographic variables for all enounters, separated by whether the encounter was followed by an encounter at Same Day Care within 14 days.")
 ```
 
 ```{r plots}
@@ -198,7 +199,6 @@ df.flat %>%
   )
 
 ```
-
 
 ```{r visitsPerPt}
 # plot: number of visits to SDC/EC
@@ -275,7 +275,11 @@ chisq.test(ff$return_in_14,ff$ff)
 
 ```
 
-## Demographic factors | What seems to have a sorting effect?
+# Variables Associated with Returning in 14 days
+
+## Categorical factors
+
+### Returning to SDC
 
 ```{r chiOfCategoricals}
 
@@ -371,9 +375,107 @@ print(CatChiList)
 
 ```
 
+### Returning to Any Facility
+
+```{r chiOfCategoricalsAny}
+
+cat_vars <- c("Fed_Ethnicity",
+              "Language",
+              "Race",
+              "Marital_Status",
+              "Sex",
+              "Religion_binary",
+              "Building",
+              "NurseUnit",
+              "ZipCode",
+              "ff")
+
+CatChi <- data.frame(
+  variable = as.character(),
+  Xsq = as.numeric(),
+  df = as.numeric(),
+  p = as.numeric(),
+  row.names = NULL
+)
+
+CatChiList <- list()
+
+for (cat in cat_vars){
+  res <- chisq.test(
+    ff[[cat]],
+    ff$return_in_14
+  )
+  
+  if (res$p.value < 0.05){
+    res.df <- data.frame(
+      variable = cat,
+      Xsq = res$statistic,
+      df = res$parameter,
+      p = res$p.value,
+      row.names = NULL
+    )
+    
+    CatChi <- rbind(CatChi, res.df)
+    
+    CatChiList[[cat]] <- res
+    
+    residuals <- data.frame(res$residuals) %>% 
+      rename(
+        Residual = Freq
+      )
+    
+    Zscores <- data.frame(100*res$residuals^2/res$statistic) %>% 
+      rename(
+        Z = Freq
+      ) %>% 
+      mutate(
+        Significant = if_else(
+          abs(Z) > 1.96,
+          TRUE,
+          FALSE
+        )
+      )
+    
+    residuals <- residuals %>% 
+      left_join(Zscores)
+    
+    CatChiList[[paste(cat,"_plot", sep = "")]] <- residuals %>% 
+      ggplot(
+        aes(
+          ff..cat..,
+          ff.return_in_14,
+          size = Z,
+          shape = Significant,
+          color = Residual
+        )
+      ) +
+      geom_point(alpha = 0.7) +
+      theme_classic() +
+      scale_color_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
+      labs(
+        title = paste(cat, "Significance Plot"),
+        y = "Returned in 14 days",
+        x = cat,
+        size = "St. Residual",
+        shape = "Significance, p < 0.05"
+      ) + 
+      theme(
+        axis.text.x = element_text(angle = 90)
+      )
+
+  }
+
+}
+
+print(CatChiList)
+
+```
+
 ## Continuous Variables
 
-```{r}
+### Returning to SDC
+
+```{r continuousVars}
 col.df <- data.frame(name = colnames(df.flat))
 col.df$class <- apply(col.df, 1, function(x) class(df.flat[[x]]))
 
@@ -421,13 +523,150 @@ print(continuous.list)
 
 ```
 
-<!-- ## Geography | Where are they from? -->
+### Returning to Any Facility
 
-<!-- - what proportion of SDC encounters from each neighborhood results in a return? A return to SDC or to other facility? -->
+```{r continuousVarsAny}
+col.df <- data.frame(name = colnames(df.flat))
+col.df$class <- apply(col.df, 1, function(x) class(df.flat[[x]]))
+
+col.continuous <- col.df %>% 
+  filter(
+    class == 'numeric'
+  ) %>% 
+  mutate(
+    class = unlist(class)
+  ) %>% 
+  filter(
+    !(name %in% c("PersonID",
+                  "EncounterID",
+                  "DiagnosisPrioritySEQ",
+                  "id",
+                  "days_to_return"))
+  )
+
+continuous.list <- list()
+
+for (var in col.continuous$name){
+  mods <- glm(df.flat$return_in_14~df.flat[[var]],
+               df.flat,
+               family = "binomial")
+  
+  summ <- summary(mods)
+  p<- as.data.frame(summ$coefficients)
+  p <- p[2,4]
+  
+  if (p<=0.05){
+    continuous.list[[var]]<-summ
+    continuous.list[[paste(var,"_plot",sep = "")]] <- ggplot(df.flat,
+                                                             aes(.data[[var]],
+                                                                 return_in_14)) +
+      geom_jitter() +
+      theme_classic() +
+      labs(
+        x = var
+      ) +
+      scale_x_log10()
+  }
+}
+
+print(continuous.list)
+
+```
 
 ## ICD-10 Codes
 
-```{r icd10}
+### Returning to SDC
+
+```{r icd10codes}
+## most common Priority ICD10
+df.icd.counts <- df.flat %>% 
+  group_by(ICD_code, return_in_14_sdc) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  ungroup() %>% 
+  arrange(
+    desc(return_in_14_sdc),
+    desc(n)
+  ) %>% 
+  pivot_wider(
+    names_from = return_in_14_sdc,
+    values_from = n,
+    values_fill = 0
+  ) %>% 
+  mutate(
+    ratio = `TRUE`/`FALSE`,
+    percentage = `TRUE`/(`FALSE` + `TRUE`)
+  ) %>% 
+  arrange(
+    desc(percentage),
+    desc(`TRUE`)
+  )
+
+## priority ICD-10 with most significant association with readmission
+df.chi <- df.flat %>% 
+  mutate(
+    n = 1
+  ) %>% 
+  pivot_wider(
+    names_from = ICD_code,
+    values_from = n,
+    values_fill = 0
+  )
+
+df.chi.results <- data.frame(ICD = as.character(),
+                             Chi2 = as.numeric(),
+                             p = as.numeric())
+
+for (i in seq(54, length(colnames(df.chi)))){
+  chiTest <- chisq.test(
+    df.chi$return_in_14_sdc,
+    df.chi[[i]]
+  )
+  
+  a <- colnames(df.chi)[i]
+  
+  res <- data.frame(ICD = a,
+                    Chi2 = chiTest$statistic,
+                    p = chiTest$p.value)
+  
+  df.chi.results <- rbind(df.chi.results, res)
+}
+
+row.names(df.chi.results) <- NULL
+
+df.icd.sig <- df.icd.counts %>% 
+  left_join(
+    df.chi.results,
+    by = c("ICD_code" = "ICD")
+  )
+
+
+df.icd.counts <- NULL
+df.chi.results <- NULL
+
+## top 50 ICD-10 codes
+top50 <- df.icd.sig %>% 
+  arrange(
+    desc(Chi2),
+    p
+  ) %>% 
+  head(50) %>% 
+  left_join(
+    ICD[c(1,3,6:8)],
+    by = c("ICD_code" = "code")
+  ) %>% 
+  arrange(
+    desc(ratio)
+  )
+
+knitr::kable(top50) %>% kableExtra::kable_styling(bootstrap_options = c("striped","condensed")) %>% kableExtra::scroll_box(width = "100%", height = "1000px")
+
+```
+
+### Returning to Any Facility
+
+```{r icd10codesAny}
 ## most common Priority ICD10
 df.icd.counts <- df.flat %>% 
   group_by(ICD_code, return_in_14) %>% 
@@ -510,39 +749,218 @@ top50 <- df.icd.sig %>%
     desc(ratio)
   )
 
-knitr::kable(top50) %>% kableExtra::kable_styling(bootstrap_options = c("striped","condensed"))
+knitr::kable(top50) %>% kableExtra::kable_styling(bootstrap_options = c("striped","condensed")) %>% kableExtra::scroll_box(width = "100%", height = "1000px")
 
 ```
 
-# Next Steps
-Topic Modelling reason for visit. Could this alone be used to predict return?
-- Develop primary model, probably via XGBoost
-- Also consider [association rules](https://towardsdatascience.com/association-rule-mining-in-r-ddf2d044ae50) or [sequence mining](https://www.r-bloggers.com/2020/10/sequence-mining-my-browsing-history-with-arulessequences/?__twitter_impression=true "This is just a link to a walkthrough").
+## ICD-10 Chapters
+
+### Returning to SDC
+
+```{r icd10chapters}
+## most common ICD10 chapter
+df.icd.counts <- df.flat %>% 
+  left_join(
+    ICD,
+    by = c("ICD_code" = "code")
+  ) %>% 
+  group_by(chapter, return_in_14_sdc) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  ungroup()
 
 
-## Potentially enriching data to add.
-- Basic vital signs, Rx, preexisting conditions.
-- Previous LOS, days since last encounter.
+# chi square
+res.df <- df.flat %>% 
+  left_join(
+    ICD,
+    by = c("ICD_code" = "code")
+  ) %>% 
+  select(
+    return_in_14_sdc, 
+    chapter
+  ) %>%
+  mutate(
+    chapter = as.character(chapter)
+  ) %>% 
+  mutate(
+    chapter = if_else(
+      is.na(chapter),
+      "No affiliated chapter",
+      chapter
+    )
+  ) %>% 
+  mutate(
+    chapter = as.factor(chapter),
+    return_in_14_sdc = as.factor(return_in_14_sdc)
+  )
 
-## Ethical Considerations
-- What to do when the model stratifies a patient as high risk? What information do we need to guide a course of action?
-- What do we do with false positives? Financial repercussions?
-- What do we do with false negatives? Liability?
+res <- chisq.test(res.df$chapter, res.df$return_in_14_sdc)
+res
 
-## Potential other studies/comparisons
-- Consider comparison against all other primary care visits. E.g. Is there a difference in the number of single individuals accessing care between PCP's and SDC?
-- Consider using this as a case study for cleaning up how data is entered.
-- Consider doing a PCA to examine latent variables and correlations.
-- Maybe targeted interventions for minority populations, e.g. park a mobile clinic on/near a reservation at a regular time each week to facilitate care.
-- Examine demographic information on a per capita basis (e.g. returns/neighborhood population).
+residuals <- data.frame(res$residuals) %>%
+  rename(
+    Residual = Freq
+  )
+    
+Zscores <- data.frame(100*res$residuals^2/res$statistic) %>% 
+  rename(
+    Z = Freq
+  ) %>% 
+  mutate(
+    Significant = if_else(
+      abs(Z) > 1.96,
+      TRUE,
+      FALSE
+    )
+  )
+    
+residuals <- residuals %>% 
+  left_join(Zscores)
 
-## Data Issues
-- Chronic disease tables are terrible as is. Need to create SAM or something. How to determine? Presence of relevant ICD-10 in the past 5-10 years? Look for prescribed medications?
-- Why are some encounterID's '0'?
-- Consider regulation of address information and differentiating between mailing and residential address. This important in terms of readiness to track disease outbreaks and public health interventions. E.g. PO Box addresses should be entered as a mailing address not a home address. 'Attn. John Doe' should be entered as the second or third line for street address. Not first.
-- What/where is *Same Day Care* Nurse Unit? Why are the number of buildings and Nurse Units different? Shouldn't they be the same? If not, why?
-- Is 14 days really the optimal window?
+residuals %>% 
+  ggplot(
+    aes(
+      res.df.chapter,
+      res.df.return_in_14_sdc,
+      size = Z,
+      shape = Significant,
+      color = Residual
+    )
+  ) +
+  geom_point(alpha = 0.7) +
+  theme_classic() +
+  scale_color_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
+  labs(
+    title = paste("ICD Chapter Significance"),
+    y = "Returned in 14 days",
+    x = "Chapter",
+    size = "St. Residual",
+    shape = "Significance, p < 0.05"
+  ) + 
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  )
 
-# Future steps
-- Deployment in medical reports
-- Blinded trials
+```
+
+### Returning to Any Facility
+
+```{r icd10chaptersAny}
+## most common ICD10 chapter
+df.icd.counts <- df.flat %>% 
+  left_join(
+    ICD,
+    by = c("ICD_code" = "code")
+  ) %>% 
+  group_by(chapter, return_in_14) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  ungroup()
+
+
+# chi square
+res.df <- df.flat %>% 
+  left_join(
+    ICD,
+    by = c("ICD_code" = "code")
+  ) %>% 
+  select(
+    return_in_14, 
+    chapter
+  ) %>%
+  mutate(
+    chapter = as.character(chapter)
+  ) %>% 
+  mutate(
+    chapter = if_else(
+      is.na(chapter),
+      "No affiliated chapter",
+      chapter
+    )
+  ) %>% 
+  mutate(
+    chapter = as.factor(chapter),
+    return_in_14 = as.factor(return_in_14)
+  )
+
+res <- chisq.test(res.df$chapter, res.df$return_in_14)
+res
+
+residuals <- data.frame(res$residuals) %>%
+  rename(
+    Residual = Freq
+  )
+    
+Zscores <- data.frame(100*res$residuals^2/res$statistic) %>% 
+  rename(
+    Z = Freq
+  ) %>% 
+  mutate(
+    Significant = if_else(
+      abs(Z) > 1.96,
+      TRUE,
+      FALSE
+    )
+  )
+    
+residuals <- residuals %>% 
+  left_join(Zscores)
+
+residuals %>% 
+  ggplot(
+    aes(
+      res.df.chapter,
+      res.df.return_in_14,
+      size = Z,
+      shape = Significant,
+      color = Residual
+    )
+  ) +
+  geom_point(alpha = 0.7) +
+  theme_classic() +
+  scale_color_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
+  labs(
+    title = paste("ICD Chapter Significance"),
+    y = "Returned in 14 days",
+    x = "Chapter",
+    size = "St. Residual",
+    shape = "Significance, p < 0.05"
+  ) + 
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  )
+
+```
+
+## Does the priority ICD appear in the return list?
+
+```{r returnICD}
+
+df.flat <- df.flat %>% 
+  mutate(
+    priority_in_return = stringr::str_detect(
+      ICD_code,
+      return_ICD_all
+    )
+  )
+
+n.return <- length(df.flat$priority_in_return[df.flat$return_in_14 == TRUE & df.flat$priority_in_return == TRUE])
+
+n.return.per <- round(100*n.return/nrow(df.flat[df.flat$return_in_14 == TRUE,]), 2)
+
+n.sdc <- length(df.flat$priority_in_return[df.flat$return_in_14_sdc == TRUE & df.flat$priority_in_return == TRUE])
+
+n.sdc.per <- round(100*n.sdc/nrow(df.flat[df.flat$return_in_14_sdc == TRUE,]), 2)
+
+```
+
+The priority ICD-10 reappears in `r n.return.per`% (n = `r n.return`) of cases returning within the next two weeks or `r n.sdc.per`% (n = `r n.sdc`).
+
+<!-- ## Geography | Where are they from? -->
+
+<!-- In progress -->
+
+<!-- - what proportion of SDC encounters from each neighborhood results in a return? A return to SDC or to other facility? -->
