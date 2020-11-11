@@ -9,6 +9,7 @@ output:
     toc_float: true
     fig_width: 6
     fig_height: 12
+    df_print: paged
 params:
   respVar: "return_in_14"
   d.frame: "did you forget me?"
@@ -22,110 +23,11 @@ library(mltools) # library for encoding?
 library(xgboost)
 library(dplyr)
 library(caret)
-library(icd.data)
-
-  # paths
-data.dir.path <- file.path("C:",
-                           "Users",
-                           "CarteB",
-                           "BILLINGS CLINIC", 
-                           "CSI & David Hedges - Same Day Care Project", 
-                           "data")
-
-out.dir.path <- file.path("C:",
-                          "Users",
-                          "CarteB",
-                          "BILLINGS CLINIC", 
-                          "CSI & David Hedges - Same Day Care Project", 
-                          "results")
-
-  # data
-ICD <- icd10cm2016 %>% # icd codes
-  mutate(
-    code = as.character(code)
-  )
-
-tops <- readRDS(file = file.path(data.dir.path, "lda.model.rds")) # topic modeling
-
-df <- params$d.frame %>% 
-  mutate(
-    return_in_14 = as.numeric(return_in_14)
-  ) %>% 
-  select(
-    -c(ICD, 
-       ICD_block, 
-       ICD_all, 
-       ICD_block_all, 
-       NAME, 
-       BC_Ethnicity,
-       city,
-       state,
-       ZipCode,
-       census_block,
-       census_tract,
-       geoid_block,
-       Building,
-       NurseUnit,
-       return_ICD_all,
-       return_ICD_block_all,
-       return_DiagnosisDSC_all,
-       ReasonForVisit,
-       ReasonForVisit_all,
-       DiagnosisPrioritySEQ,
-       DiagnosisType,
-       DiagnosisDSC,
-       days_to_return,
-       return_Building,
-       return_NurseUnit,
-       dist_eu_pt_return,
-       id,
-       FIPS,
-       PersonID,
-       DTS,
-       state_fips,
-       county_fips,
-       DiagnosisDSC_all,
-       return_ReasonForVisit_all,
-       geoid_tract,
-       country,
-       Religion,
-       Fed_Ethnicity,
-       po_box)
-  ) %>% 
-  left_join(
-    ICD,
-    by = c("ICD_code" = "code")
-  ) %>% 
-  mutate(
-    EncounterID = as.character(EncounterID)
-  ) %>% 
-  left_join(
-    tops$gammas,
-    by = c("EncounterID" = "document")
-  ) %>%
-  select(
-    -c(
-      EncounterID,
-      ICD_code,
-      billable,
-      short_desc,
-      long_desc,
-      three_digit,
-      major,
-      sub_chapter,
-      gamma
-    )
-  ) %>%
-  mutate(
-    topic = as.character(topic)
-  )
-
-columns <- colnames(df)
 
 # One-hot encoding ####
 
-dummy <- dummyVars(" ~ .", data=df)
-newdata <- data.frame(predict(dummy, newdata = df))
+dummy <- dummyVars(" ~ .", data=params$d.frame)
+newdata <- data.frame(predict(dummy, newdata = params$d.frame))
 df <- newdata
 
 ```
@@ -136,12 +38,11 @@ df <- newdata
 ```{r correlations}
 
 var.list <- colnames(df)
-var.list <- var.list[var.list != "return_in_14"]
 
 res.df <- data.frame()
 
 for (var in var.list){
-  Test <- cor.test(x = df$return_in_14, y = df[[var]])
+  Test <- cor.test(x = df[[params$respVar]], y = df[[var]])
 
   res <- data.frame("variable" = var,
                     "R2" = Test$estimate,
@@ -153,24 +54,29 @@ for (var in var.list){
 top_50 <- res.df %>% slice_min(p.val, n = 50)
 top_50 <- top_50$variable
 
+print(paste("Features highly correlated with ", params$respVar, sep=""))
+
+top_50
 
 df <- df %>%
-  select(top_50, return_in_14)
+  select(
+    all_of(top_50)
+  )
 
 
 ```
 
 # Gradient Boosting
 
-```{r boosting}
+```{r makeData}
 # David's code ####
 
 # Balance the Dataset
 
 # Create Training Data
 
-input_ones <- df[which(df$return_in_14 == 1), ] # all 1's
-input_zeros <- df[which(df$return_in_14 == 0), ] # all 0's
+input_ones <- df[which(df[[params$respVar]] == 1), ] # all 1's
+input_zeros <- df[which(df[[params$respVar]] == 0), ] # all 0's
 nrow(input_ones)
 nrow(input_zeros)
 
@@ -201,7 +107,7 @@ y_test <- X_test %>%
 
 
 # Drop y from X
-label_drop <- c('return_in_14')
+label_drop <- c(params$respVar)
 
 X_train <- X_train[ , !(names(X_train) %in% label_drop)]
 X_test <- X_test[ , !(names(X_test) %in% label_drop)]
@@ -218,6 +124,9 @@ X_test <- as.matrix(X_test)
 y_train <- as.matrix(y_train)
 y_test <- as.matrix(y_test)
 
+```
+
+```{r gradientBoosting}
 # train model
 xg.model <- xgboost(
   data = X_train,
@@ -232,7 +141,11 @@ xg.model <- xgboost(
   gamma = 10,
   min_child_weight = 10
 )
+```
 
+# AUC
+
+```{r auc}
 # evaluate
 pred_prob_train <- predict(xg.model, X_train)
 pred_prob_test <- predict(xg.model, X_test)
@@ -240,23 +153,40 @@ pred_prob_test <- predict(xg.model, X_test)
 # AUC
 library(ROCR)
 pred_ROCR <- prediction(pred_prob_train, y_train[,1])
-auc_ROCR <- performance(pred_ROCR, measure = 'auc')
-auc_ROCR <- auc_ROCR@y.values[[1]]
-auc_ROCR
+auc_ROCR_train <- performance(pred_ROCR, measure = 'auc')
+auc_ROCR_train <- auc_ROCR_train@y.values[[1]]
+
 pred_ROCR <- prediction(pred_prob_test, y_test[,1])
-auc_ROCR <- performance(pred_ROCR, measure = 'auc')
-auc_ROCR <- auc_ROCR@y.values[[1]]
-auc_ROCR
+auc_ROCR_test <- performance(pred_ROCR, measure = 'auc')
+auc_ROCR_test <- auc_ROCR_test@y.values[[1]]
+auc_ROCR_test
+```
+
+AUC Train: `r auc_ROCR_train`
+AUC Test: `r auc_ROCR_test`
+Train/Test: `r auc_ROCR_train/auc_ROCR_test`
+
+# Accuracy
+
+```{r accuracy}
 # Accuracy
 pred_ROCR <- prediction(pred_prob_train, y_train[,1])
-acc_ROCR <- performance(pred_ROCR, measure = 'acc')
-acc_ROCR <- max(acc_ROCR@y.values[[1]])
-acc_ROCR
-pred_ROCR <- prediction(pred_prob_test, y_test[,1])
-acc_ROCR <- performance(pred_ROCR, measure = 'acc')
-acc_ROCR <- max(acc_ROCR@y.values[[1]])
-acc_ROCR
+acc_ROCR_train <- performance(pred_ROCR, measure = 'acc')
+acc_ROCR_train <- max(acc_ROCR_train@y.values[[1]])
 
+pred_ROCR <- prediction(pred_prob_test, y_test[,1])
+acc_ROCR_test <- performance(pred_ROCR, measure = 'acc')
+acc_ROCR_test <- max(acc_ROCR_test@y.values[[1]])
+
+```
+
+ACC Train: `r acc_ROCR_train`
+ACC Test: `r acc_ROCR_test`
+Train/Test: `r acc_ROCR_train/acc_ROCR_test`
+
+# Factor Importance
+
+```{r plotFactors}
 # take a peak at deciding factors
 mat <- xgb.importance(feature_names=colnames(X_train), model=xg.model)
 # xgb.plot.importance (importance_matrix = mat[1:32])
@@ -295,12 +225,20 @@ pred_prob_test <- predict(log.mod, as.data.frame(X_test))
 # AUC
 library(ROCR)
 pred_ROCR <- prediction(pred_prob_train, y_train[,1])
-auc_ROCR <- performance(pred_ROCR, measure = 'auc')
-auc_ROCR <- auc_ROCR@y.values[[1]]
-auc_ROCR
+auc_ROCR_train <- performance(pred_ROCR, measure = 'auc')
+auc_ROCR_train <- auc_ROCR_train@y.values[[1]]
+
 pred_ROCR <- prediction(pred_prob_test, y_test[,1])
-auc_ROCR <- performance(pred_ROCR, measure = 'auc')
-auc_ROCR <- auc_ROCR@y.values[[1]]
-auc_ROCR
+auc_ROCR_test <- performance(pred_ROCR, measure = 'auc')
+auc_ROCR_test <- auc_ROCR_test@y.values[[1]]
 
 ```
+
+AUC Train: `r auc_ROCR_train`
+AUC Test: `r auc_ROCR_test`
+Train/Test: `r auc_ROCR_train/auc_ROCR_test`
+
+```{r logisticSum}
+summary(log.mod)
+```
+
