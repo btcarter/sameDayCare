@@ -1,0 +1,42 @@
+---
+title: "Introduction"
+author: "Benjamin T. Carter, PhD"
+date: "Generated: `r Sys.time()`"
+output: html_document
+---
+
+# Problem
+- SDC/EC exists to reduce congestion in the ER and clinics.
+- Provides a place where individuals with uncomplicated medical problems can seek quick and covenient treatment.
+- This mission is confounded when patients return to a BC facility because their healthcare problems were not adequately addressed.
+- Can we predict which patients are most likely to return to a BC facility after SDC/EC?
+- Can we prevent this return?
+
+# Hypothesis
+1. If risk factors for readmission are present in the EHR then these can be used to stratify patients at risk of acute readmission following a visit to Same Day Care or Express Care.
+
+# Project Aims
+1. Develop a model.
+  1. Identify patient encounters followed by a return within 2 weeks.
+  2. Perform a descriptive analysis of these encounters.
+  3. Quantify the effect of pertinent variables.
+  4. Develop an appropriate model to predict return.
+  5. Report results in manuscript.
+2. Validate the model.
+  5. Test model in a clinical validation.
+  6. Evaluate and report deployment.
+  7. Revise model/deployment methods and redeploy.
+  7. Report results in manuscript.
+
+# Methods
+- Encounters ID'd by [SQL query](https://github.com/btcarter/sameDayCare/blob/master/analyses/2019_query.sql) in SSMS.
+- Exported to CSV
+- Flattened, geocoded and return variables created by [R](https://github.com/btcarter/sameDayCare/blob/master/analyses/preprocessing.R)
+  - This included adding additional data from American Communities Survey, 2010 Census, and RUCC codes.
+  - Distance travelled to SDC/EC location was calculated as the geographic distance between the home address and SDC/EC facility. Street address was not retained in the final dataset, however city, state, postal code and country were retained.
+- Exploratory topic modeling on Reason for Visit in [R via BAT](https://github.com/btcarter/sameDayCare/blob/master/analyses/nlp.R).
+
+# Revisions
+- Return is now in days (not hours, a mistake in v0.1)
+- Topic modelling not added (discovered return time error too late to run it again).
+- Added RUCC, median home value, median household income, Euclidean distance to SDC/EC facility as well as distance to return facility, returning ICD list, Diagnosis and Reason for visit.
