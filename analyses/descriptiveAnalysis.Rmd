@@ -20,232 +20,54 @@ knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE)
 
 
 ```{r environment}
+# packages
+
 library(dplyr)
 library(tidyr)
 library(lubridate)
-library(icd.data) # for reading in ICD10 classifying information and calculating risk scores also consider packages: comorbidity, icd
-library(ggplot2)
 library(compareGroups)
 
-# paths
-data.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
-                           "CSI & David Hedges - Same Day Care Project", "data")
-
-out.dir.path <- file.path("C:","Users","CarteB","BILLINGS CLINIC", 
-                          "CSI & David Hedges - Same Day Care Project", "results")
-
 # data
+d.frame <- params$d.frame
+respVar <- params$respVar
 
-df.flat.name <- file.path(data.dir.path, "sdc.flat.xlsx")
-
-df.flat <- readxl::read_xlsx(df.flat.name)
-
-ICD <- icd10cm2016 %>%
-  mutate(
-    code = as.character(code)
-  )
-
-SDCEC <- unique(df.flat$NurseUnit)
-
-# clean up
-df.flat <- df.flat %>% 
-  filter(
-    !is.na(return_in_14)
-  ) %>% 
-  mutate(
-    return_in_14_sdc = if_else(
-      return_in_14 == TRUE & return_NurseUnit %in% SDCEC,
-      TRUE,
-      FALSE
-    ),
-    return_types = if_else(
-      return_in_14_sdc == TRUE,
-      "SDC",
-      if_else(
-        return_in_14 == TRUE,
-        "Other Facility",
-        "No return"
-      )
-    )
-  )
+# variable lists
+# identify variable types and make lists
+numeric.vars <- unlist(lapply(d.frame, is.numeric))
+boolean.vars <- unlist(lapply(d.frame, is.logical))
+categorical.vars <- unlist(lapply(d.frame, is.character))
+categorical.vars <- union(categorical.vars,
+                          unlist(lapply(d.frame, is.factor)))
 
 ```
-
-## Data Quality
-
-```{r}
-total <- nrow(df.flat)
-completed <- complete.cases(df.flat[c(1:33)])
-sum_completed_no_geo <- sum(completed)
-
-completed <- complete.cases(df.flat[c(1:46)])
-sum_completed_geo <- sum(completed)
-
-```
-
-
-- `r total` patient encounters were identified.
-- `r sum_completed_no_geo` are considered complete cases when geographic variables are not considered.
-- Only `r sum_completed_geo` have complete geographic information.
-  - This is an estimate. A manual review might recover some cases or exclude others.
-
-<!-- ## Aims -->
-<!-- - How much traffic are we seeing in SDC/EC? -->
-<!-- - What are the top ICD-10 codes associated with a readmission? -->
-<!-- - Who returned? -->
-<!-- - What relationship does this have with our predictors? -->
-<!-- - Who returned more than once (frequent fliers)? -->
-<!-- - How many times are they coming back? -->
-<!-- - How often are they coming back? -->
-<!-- - Why are they coming back? -->
-<!-- - Where/who are they returning too? -->
-<!-- - Which sites are they coming from? -->
-<!-- - Can we predict return? -->
 
 # Overview
 
-## Table 1 - All Encounters
+## Table 1
 
 ```{r table1}
 
-df.comp <- df.flat %>% 
-  mutate(
-    return_in_14 = as.factor(return_in_14),
-    return_in_14_sdc = as.factor(return_in_14_sdc),
-    RUCC_2013 = as.factor(RUCC_2013),
-    po_box = as.factor(po_box)
-  ) %>% 
-  select(
-    AdmitAge,
-    Sex,
-    Race,
-    Fed_Ethnicity,
-    tribal_affil,
-    Language,
-    Marital_Status,
-    Religion_binary,
-    median_income_2018,
-    median_home_value_2018,
-    return_types,
-    Building,
-    days_to_return,
-    RUCC_2013,
-    po_box,
-    dist_eu_pt_sdc,
-    dist_eu_pt_return
-  )
+if (is.logical(d.frame[[respVar]])) {
+  d.frame[[respVar]] <- as.factor(d.frame[[respVar]])
+}
+
+thing <- paste(respVar, "~", " .", sep = "")
 
 comp.obj <- compareGroups(
-  return_types ~ .,
-  df.comp,
-  max.xlev = 60
+  thing,
+  d.frame,
+  max.xlev = 22
 )
 
-createTable(comp.obj, show.p.overall = FALSE, show.all = TRUE) %>% export2md(caption = "Descriptive table for demographic variables for all enounters, separated by whether the encounter was followed by a readmission within fourteen days (TRUE) or not (FALSE).")
+cap <- paste("Descriptive table for ", respVar, ".", sep = "")
 
-# comp.obj <- compareGroups(return_in_14_sdc ~. -return_in_14, df.comp)
-# 
-# createTable(comp.obj, show.p.overall = FALSE, show.all = TRUE) %>% export2md(caption = "Descriptive table for demographic variables for all enounters, separated by whether the encounter was followed by an encounter at Same Day Care within 14 days.")
-```
-
-```{r plots}
-
-df.flat %>% 
-  ggplot(
-    aes(DTS, fill=return_types)
-  ) +
-  geom_histogram(bins = 36, alpha = 0.75) +
-  theme_classic() +
-  labs(
-    title = "Same Day Care Encounters by Time of Year",
-    x = "Date",
-    y = "Total Visits",
-    fill = "Return in 14 days",
-    caption = "This plot depicts the number of encounters occuring at Same Day Care and Express Care facilities during the study period, binned by month."
-  )
+createTable(comp.obj, show.p.overall = FALSE, show.all = TRUE) %>% export2md(caption = cap)
 
 ```
 
-```{r visitsPerPt}
-# plot: number of visits to SDC/EC
-traffic <- df.flat %>% 
-  group_by(
-    PersonID
-  ) %>% 
-  summarise(
-    n = n()
-  ) %>% 
-  ungroup()
-
-traffic %>% 
-  ggplot(
-    aes(n)
-  ) +
-  geom_histogram(binwidth = 1) +
-  scale_y_log10() +
-  theme_classic() +
-  labs(
-    title = "Distribution of Number of Visits to SDC/EC",
-    x = "Number of Visits",
-    y = "Log10 of Number of Individuals",
-    caption = "This depicts the number of individuals making a specified number of visits to SDC/EC during the years 2017-2019."
-  )
-
-```
-
-## Frequent Fliers
-
-```{r frqtFlyers}
-ff <- df.flat %>%
-  group_by(
-    PersonID,
-    NurseUnit
-  ) %>% 
-  summarise(
-    `TotalVisits` = n()
-  ) %>% 
-  ungroup() %>% 
-  filter(
-    NurseUnit %in% SDCEC
-  ) %>% 
-  group_by(
-    PersonID
-  ) %>% 
-  summarise(
-    Total_SDC_Visits = sum(TotalVisits)
-  ) %>% 
-  ungroup() %>% 
-  right_join(
-    df.flat,
-    by = c("PersonID" = "PersonID")
-  ) %>% 
-  mutate(
-    return_in_14 = as.character(return_in_14)
-  ) %>% 
-  mutate(
-    ff = if_else(
-      `Total_SDC_Visits` >= 
-        quantile(Total_SDC_Visits, prob = 0.95, na.rm = TRUE),
-      "Frequent flier",
-      "Infrequent flier"
-    )
-  )
-
-ff.comp <- compareGroups(ff ~  Total_SDC_Visits+return_in_14_sdc+return_in_14+Sex+AdmitAge+Race+Fed_Ethnicity+tribal_affil+RUCC_2013+median_income_2018+median_home_value_2018+dist_eu_pt_sdc+dist_eu_pt_return,
-                         ff,
-                         max.xlev = 55)
-
-ff.comp %>% createTable(show.all = TRUE, show.p.overall = FALSE) %>% export2md()
-
-chisq.test(ff$return_in_14,ff$ff)
-
-```
-
-# Variables Associated with Returning in 14 days
+# Variables Associated with `r respVar`
 
 ## Categorical factors
-
-### Returning to SDC
 
 ```{r chiOfCategoricals}
 
@@ -272,8 +94,8 @@ CatChiList <- list()
 
 for (cat in cat_vars){
   res <- chisq.test(
-    ff[[cat]],
-    ff$return_in_14_sdc
+    d.frame[[cat]],
+    d.frame[[respVar]]
   )
   
   if (res$p.value < 0.05){
@@ -312,8 +134,8 @@ for (cat in cat_vars){
     CatChiList[[paste(cat,"_plot", sep = "")]] <- residuals %>% 
       ggplot(
         aes(
-          ff..cat..,
-          ff.return_in_14_sdc,
+          d.frame..cat..,
+          d.frame..respVar..,
           size = Z,
           shape = Significant,
           color = Residual
@@ -324,103 +146,7 @@ for (cat in cat_vars){
       scale_color_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
       labs(
         title = paste(cat, "Significance Plot"),
-        y = "Returned in 14 days to SDC",
-        x = cat,
-        size = "St. Residual",
-        shape = "Significance, p < 0.05"
-      ) + 
-      theme(
-        axis.text.x = element_text(angle = 90)
-      )
-
-  }
-
-}
-
-print(CatChiList)
-
-```
-
-### Returning to Any Facility
-
-```{r chiOfCategoricalsAny}
-
-cat_vars <- c("Fed_Ethnicity",
-              "Language",
-              "Race",
-              "Marital_Status",
-              "Sex",
-              "Religion_binary",
-              "Building",
-              "NurseUnit",
-              "ZipCode",
-              "ff")
-
-CatChi <- data.frame(
-  variable = as.character(),
-  Xsq = as.numeric(),
-  df = as.numeric(),
-  p = as.numeric(),
-  row.names = NULL
-)
-
-CatChiList <- list()
-
-for (cat in cat_vars){
-  res <- chisq.test(
-    ff[[cat]],
-    ff$return_in_14
-  )
-  
-  if (res$p.value < 0.05){
-    res.df <- data.frame(
-      variable = cat,
-      Xsq = res$statistic,
-      df = res$parameter,
-      p = res$p.value,
-      row.names = NULL
-    )
-    
-    CatChi <- rbind(CatChi, res.df)
-    
-    CatChiList[[cat]] <- res
-    
-    residuals <- data.frame(res$residuals) %>% 
-      rename(
-        Residual = Freq
-      )
-    
-    Zscores <- data.frame(100*res$residuals^2/res$statistic) %>% 
-      rename(
-        Z = Freq
-      ) %>% 
-      mutate(
-        Significant = if_else(
-          abs(Z) > 1.96,
-          TRUE,
-          FALSE
-        )
-      )
-    
-    residuals <- residuals %>% 
-      left_join(Zscores)
-    
-    CatChiList[[paste(cat,"_plot", sep = "")]] <- residuals %>% 
-      ggplot(
-        aes(
-          ff..cat..,
-          ff.return_in_14,
-          size = Z,
-          shape = Significant,
-          color = Residual
-        )
-      ) +
-      geom_point(alpha = 0.7) +
-      theme_classic() +
-      scale_color_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
-      labs(
-        title = paste(cat, "Significance Plot"),
-        y = "Returned in 14 days",
+        y = respVar,
         x = cat,
         size = "St. Residual",
         shape = "Significance, p < 0.05"
@@ -439,11 +165,9 @@ print(CatChiList)
 
 ## Continuous Variables
 
-### Returning to SDC
-
 ```{r continuousVars}
-col.df <- data.frame(name = colnames(df.flat))
-col.df$class <- apply(col.df, 1, function(x) class(df.flat[[x]]))
+col.df <- data.frame(name = colnames(d.frame))
+col.df$class <- apply(col.df, 1, function(x) class(d.frame[[x]]))
 
 col.continuous <- col.df %>% 
   filter(
@@ -463,8 +187,8 @@ col.continuous <- col.df %>%
 continuous.list <- list()
 
 for (var in col.continuous$name){
-  mods <- glm(df.flat$return_in_14_sdc~df.flat[[var]],
-               df.flat,
+  mods <- glm(d.frame[[respVar]]~d.frame[[var]],
+               d.frame,
                family = "binomial")
   
   summ <- summary(mods)
@@ -473,59 +197,9 @@ for (var in col.continuous$name){
   
   if (p<=0.05){
     continuous.list[[var]]<-summ
-    continuous.list[[paste(var,"_plot",sep = "")]] <- ggplot(df.flat,
+    continuous.list[[paste(var,"_plot",sep = "")]] <- ggplot(d.frame,
                                                              aes(.data[[var]],
-                                                                 return_in_14_sdc)) +
-      geom_jitter() +
-      theme_classic() +
-      labs(
-        x = var
-      ) +
-      scale_x_log10()
-  }
-}
-
-print(continuous.list)
-
-```
-
-### Returning to Any Facility
-
-```{r continuousVarsAny}
-col.df <- data.frame(name = colnames(df.flat))
-col.df$class <- apply(col.df, 1, function(x) class(df.flat[[x]]))
-
-col.continuous <- col.df %>% 
-  filter(
-    class == 'numeric'
-  ) %>% 
-  mutate(
-    class = unlist(class)
-  ) %>% 
-  filter(
-    !(name %in% c("PersonID",
-                  "EncounterID",
-                  "DiagnosisPrioritySEQ",
-                  "id",
-                  "days_to_return"))
-  )
-
-continuous.list <- list()
-
-for (var in col.continuous$name){
-  mods <- glm(df.flat$return_in_14~df.flat[[var]],
-               df.flat,
-               family = "binomial")
-  
-  summ <- summary(mods)
-  p<- as.data.frame(summ$coefficients)
-  p <- p[2,4]
-  
-  if (p<=0.05){
-    continuous.list[[var]]<-summ
-    continuous.list[[paste(var,"_plot",sep = "")]] <- ggplot(df.flat,
-                                                             aes(.data[[var]],
-                                                                 return_in_14)) +
+                                                                 .data[[respVar]])) +
       geom_jitter() +
       theme_classic() +
       labs(
@@ -541,22 +215,20 @@ print(continuous.list)
 
 ## ICD-10 Codes
 
-### Returning to SDC
-
 ```{r icd10codes}
 ## most common Priority ICD10
-df.icd.counts <- df.flat %>% 
-  group_by(ICD_code, return_in_14_sdc) %>% 
+df.icd.counts <- d.frame %>% 
+  group_by(ICD_code, .data[[respVar]]) %>% 
   summarise(
     n = n()
   ) %>% 
   ungroup() %>% 
   arrange(
-    desc(return_in_14_sdc),
+    desc(.data[[respVar]]),
     desc(n)
   ) %>% 
   pivot_wider(
-    names_from = return_in_14_sdc,
+    names_from = .data[[respVar]],
     values_from = n,
     values_fill = 0
   ) %>% 
@@ -570,7 +242,7 @@ df.icd.counts <- df.flat %>%
   )
 
 ## priority ICD-10 with most significant association with readmission
-df.chi <- df.flat %>% 
+df.chi <- d.frame %>% 
   mutate(
     n = 1
   ) %>% 
@@ -584,98 +256,9 @@ df.chi.results <- data.frame(ICD = as.character(),
                              Chi2 = as.numeric(),
                              p = as.numeric())
 
-for (i in seq(54, length(colnames(df.chi)))){
+for (i in seq(59, length(colnames(df.chi)))){
   chiTest <- chisq.test(
-    df.chi$return_in_14_sdc,
-    df.chi[[i]]
-  )
-  
-  a <- colnames(df.chi)[i]
-  
-  res <- data.frame(ICD = a,
-                    Chi2 = chiTest$statistic,
-                    p = chiTest$p.value)
-  
-  df.chi.results <- rbind(df.chi.results, res)
-}
-
-row.names(df.chi.results) <- NULL
-
-df.icd.sig <- df.icd.counts %>% 
-  left_join(
-    df.chi.results,
-    by = c("ICD_code" = "ICD")
-  )
-
-
-df.icd.counts <- NULL
-df.chi.results <- NULL
-
-## top 50 ICD-10 codes
-top50 <- df.icd.sig %>% 
-  arrange(
-    desc(Chi2),
-    p
-  ) %>% 
-  head(50) %>% 
-  left_join(
-    ICD[c(1,3,6:8)],
-    by = c("ICD_code" = "code")
-  ) %>% 
-  arrange(
-    desc(ratio)
-  )
-
-knitr::kable(top50) %>% kableExtra::kable_styling(bootstrap_options = c("striped","condensed")) %>% kableExtra::scroll_box(width = "100%", height = "1000px")
-
-```
-
-### Returning to Any Facility
-
-```{r icd10codesAny}
-## most common Priority ICD10
-df.icd.counts <- df.flat %>% 
-  group_by(ICD_code, return_in_14) %>% 
-  summarise(
-    n = n()
-  ) %>% 
-  ungroup() %>% 
-  arrange(
-    desc(return_in_14),
-    desc(n)
-  ) %>% 
-  pivot_wider(
-    names_from = return_in_14,
-    values_from = n,
-    values_fill = 0
-  ) %>% 
-  mutate(
-    ratio = `TRUE`/`FALSE`,
-    percentage = `TRUE`/(`FALSE` + `TRUE`)
-  ) %>% 
-  arrange(
-    desc(percentage),
-    desc(`TRUE`)
-  )
-
-## priority ICD-10 with most significant association with readmission
-df.chi <- df.flat %>% 
-  mutate(
-    n = 1
-  ) %>% 
-  pivot_wider(
-    names_from = ICD_code,
-    values_from = n,
-    values_fill = 0
-  )
-
-df.chi.results <- data.frame(ICD = as.character(),
-                             Chi2 = as.numeric(),
-                             p = as.numeric())
-
-for (i in seq(54, length(colnames(df.chi)))){
-  chiTest <- chisq.test(
-    df.chi$return_in_14,
+    df.chi[[respVar]],
     df.chi[[i]]
   )
   
@@ -721,16 +304,10 @@ knitr::kable(top50) %>% kableExtra::kable_styling(bootstrap_options = c("striped
 
 ## ICD-10 Chapters
 
-### Returning to SDC
-
-```{r icd10chapters}
+```{r icd10chapters, fig.height='1000px'}
 ## most common ICD10 chapter
-df.icd.counts <- df.flat %>% 
-  left_join(
-    ICD,
-    by = c("ICD_code" = "code")
-  ) %>% 
-  group_by(chapter, return_in_14_sdc) %>% 
+df.icd.counts <- d.frame %>% 
+  group_by(chapter, .data[[respVar]]) %>% 
   summarise(
     n = n()
   ) %>% 
@@ -738,13 +315,9 @@ df.icd.counts <- df.flat %>%
 
 
 # chi square
-res.df <- df.flat %>% 
-  left_join(
-    ICD,
-    by = c("ICD_code" = "code")
-  ) %>% 
+res.df <- d.frame %>% 
   select(
-    return_in_14_sdc, 
+    .data[[respVar]], 
     chapter
   ) %>%
   mutate(
@@ -759,10 +332,10 @@ res.df <- df.flat %>%
   ) %>% 
   mutate(
     chapter = as.factor(chapter),
-    return_in_14_sdc = as.factor(return_in_14_sdc)
+    # .data[[respVar]] = as.factor(.data[[respVar]])
   )
 
-res <- chisq.test(res.df$chapter, res.df$return_in_14_sdc)
+res <- chisq.test(res.df$chapter, res.df[[respVar]])
 res
 
 residuals <- data.frame(res$residuals) %>%
@@ -789,7 +362,7 @@ residuals %>%
   ggplot(
     aes(
       res.df.chapter,
-      res.df.return_in_14_sdc,
+      res.df..respVar..,
       size = Z,
       shape = Significant,
       color = Residual
@@ -800,7 +373,7 @@ residuals %>%
   scale_color_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
   labs(
     title = paste("ICD Chapter Significance"),
-    y = "Returned in 14 days",
+    y = respVar,
     x = "Chapter",
     size = "St. Residual",
     shape = "Significance, p < 0.05"
@@ -810,123 +383,3 @@ residuals %>%
   )
 
 ```
-
-### Returning to Any Facility
-
-```{r icd10chaptersAny}
-## most common ICD10 chapter
-df.icd.counts <- df.flat %>% 
-  left_join(
-    ICD,
-    by = c("ICD_code" = "code")
-  ) %>% 
-  group_by(chapter, return_in_14) %>% 
-  summarise(
-    n = n()
-  ) %>% 
-  ungroup()
-
-
-# chi square
-res.df <- df.flat %>% 
-  left_join(
-    ICD,
-    by = c("ICD_code" = "code")
-  ) %>% 
-  select(
-    return_in_14, 
-    chapter
-  ) %>%
-  mutate(
-    chapter = as.character(chapter)
-  ) %>% 
-  mutate(
-    chapter = if_else(
-      is.na(chapter),
-      "No affiliated chapter",
-      chapter
-    )
-  ) %>% 
-  mutate(
-    chapter = as.factor(chapter),
-    return_in_14 = as.factor(return_in_14)
-  )
-
-res <- chisq.test(res.df$chapter, res.df$return_in_14)
-res
-
-residuals <- data.frame(res$residuals) %>%
-  rename(
-    Residual = Freq
-  )
-    
-Zscores <- data.frame(100*res$residuals^2/res$statistic) %>% 
-  rename(
-    Z = Freq
-  ) %>% 
-  mutate(
-    Significant = if_else(
-      abs(Z) > 1.96,
-      TRUE,
-      FALSE
-    )
-  )
-    
-residuals <- residuals %>% 
-  left_join(Zscores)
-
-residuals %>% 
-  ggplot(
-    aes(
-      res.df.chapter,
-      res.df.return_in_14,
-      size = Z,
-      shape = Significant,
-      color = Residual
-    )
-  ) +
-  geom_point(alpha = 0.7) +
-  theme_classic() +
-  scale_color_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
-  labs(
-    title = paste("ICD Chapter Significance"),
-    y = "Returned in 14 days",
-    x = "Chapter",
-    size = "St. Residual",
-    shape = "Significance, p < 0.05"
-  ) + 
-  theme(
-    axis.text.x = element_text(angle = 90, hjust = 1)
-  )
-
-```
-
-## Does the priority ICD appear in the return list?
-
-```{r returnICD}
-
-df.flat <- df.flat %>% 
-  mutate(
-    priority_in_return = stringr::str_detect(
-      ICD_code,
-      return_ICD_all
-    )
-  )
-
-n.return <- length(df.flat$priority_in_return[df.flat$return_in_14 == TRUE & df.flat$priority_in_return == TRUE])
-
-n.return.per <- round(100*n.return/nrow(df.flat[df.flat$return_in_14 == TRUE,]), 2)
-
-n.sdc <- length(df.flat$priority_in_return[df.flat$return_in_14_sdc == TRUE & df.flat$priority_in_return == TRUE])
-
-n.sdc.per <- round(100*n.sdc/nrow(df.flat[df.flat$return_in_14_sdc == TRUE,]), 2)
-
-```
-
-The priority ICD-10 reappears in `r n.return.per`% (n = `r n.return`) of cases returning within the next two weeks or `r n.sdc.per`% (n = `r n.sdc`).
-
-<!-- ## Geography | Where are they from? -->
-
-<!-- In progress -->
-
-<!-- - what proportion of SDC encounters from each neighborhood results in a return? A return to SDC or to other facility? -->
