@@ -23,6 +23,7 @@ Topic Modelling reason for visit. Could this alone be used to predict return?
 - What do we do with false negatives? Liability?
 
 ## Potential other studies/comparisons
+- Do respiratory disease trends flip in 2020 due to COVID? (should be a reflection of change in PCP practice)
 - Consider comparison against all other primary care visits. E.g. Is there a difference in the number of single individuals accessing care between PCP's and SDC?
 - Consider using this as a case study for cleaning up how data is entered.
 - Consider doing a PCA to examine latent variables and correlations.
