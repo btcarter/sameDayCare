@@ -15,9 +15,12 @@ output:
 knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE)
 ```
 
-```{r dataPrep}
-library(icd.data)
+```{r dataLoadPrep}
+# packagaes
+library(dplyr)
+library(icd.data) # for reading in ICD10 classifying information; also consider packages: comorbidity, icd
 
+# paths
 data.dir.path <- file.path("C:",
                            "Users",
                            "CarteB",
@@ -27,9 +30,9 @@ data.dir.path <- file.path("C:",
 
 df.name <- file.path(data.dir.path, "sdc.flat.xlsx")
 
+# get data
 df <- readxl::read_xlsx(df.name)
 
-# get data
 ICD <- icd10cm2016 %>% # icd codes
   mutate(
     code = as.character(code)
@@ -37,8 +40,285 @@ ICD <- icd10cm2016 %>% # icd codes
 
 tops <- readRDS(file = file.path(data.dir.path, "lda.model.rds")) # topic modeling
 
-df <- df %>% 
+df <- df %>% # add topics for encounters and ICD code chapters for Priority ICD-10
   left_join(
+    ICD,
+    by = c("ICD_code" = "code")
+  ) %>% 
+  mutate(
+    EncounterID = as.character(EncounterID)
+  ) %>% 
+  left_join(
+    tops$gammas,
+    by = c("EncounterID" = "document")
+  ) %>%
+  select(
+    -c(
+      billable,
+      short_desc,
+      long_desc,
+      three_digit,
+      major,
+      gamma
+    )
+  ) %>%
+  mutate(
+    topic = as.character(topic)
+  ) %>%  
+  filter(
+    !is.na(return_in_14)
+  ) %>% 
+  filter(
+    return_Building != "ROUNDUP MEMORIAL CLINIC"
+  )
+
+geo.rows <- c("state_fips",
+              "FIPS",
+              "county_fips",
+              "RUCC_2013",
+              "city",
+              "state",
+              "ZipCode",
+              "country",
+              "po_box",
+              "id",
+              "census_tract",
+              "census_block",
+              "geoid_block",
+              "geoid_tract",
+              "NAME",
+              "median_income_2018",
+              "median_home_value_2018",
+              "dist_eu_pt_sdc",
+              "dist_eu_pt_return")
+
+return.vars <- c("return_ICD_all",
+                 "return_ICD_block_all",
+                 "return_DiagnosisDSC_all",
+                 "return_ReasonForVisit_all",
+                 "return_Building",
+                 "return_NurseUnit")
+
+df[return.vars] <- replace_na(df[return.vars], "No return")
+
+return.vars <- union(return.vars,
+                     "days_to_return")
+
+
+start.rows <- setdiff(names(df), c(geo.rows, return.vars))
+
+```
+
+This is a global report of all parts of the SDC project.
+
+# Introduction
+
+```{r child='introduction.Rmd'}
+```
+
+## Data Quality
+
+```{r quality}
+total <- nrow(df)
+completed <- complete.cases(df[start.rows])
+sum_completed_no_geo <- sum(completed)
+
+completed <- complete.cases(df[c(start.rows, geo.rows)])
+sum_completed_geo <- sum(completed)
+```
+
+A total of `r nrow(df)` cases were identified. Of these cases only `r sum_completed_no_geo` had complete case information, when including geographic information (defined as a resendential address recognized by the Census Geocoding API) the number of complete cases drops to `r sum_completed_geo`. This represents only `r 100*sum_completed_geo/nrow(df)`% of the original dataset, and this is after the data were programatically curated. A manual curation might recover some cases, or exclude others. In many cases, address data were incomplete (e.g. the street field was not completed), incorrect (e.g. a state was entered in place of a zip code), or inappropriate (e.g. a PO box address was listed as a resedential address). In some cases adhoc entries were used to indicate homelessness, however these entries were not standardized, making a manual curation unrealistic.
+
+It is recommended that address data be strictly regulated. The distinction between a mailing address and resendential address should be enforced. The entry of homelessness should be standardized, perhaps in a separate field.
+
+```{r addingVars}
+# locations
+SDCEC <- unique(df$NurseUnit)
+
+SDC <- c("Same Day Care",
+         "WE Same Day Care",
+         "HTS Same Day Care",
+         "Heights Same Day Care",
+         "SDC Downtown Nurse",
+         "West End SDC",
+         "SDC West Nurse")
+
+# Exclude Roundup b/c we don't have permission to pull data.
+
+hospitals <- c("BIllings Clinic Downtown", 
+               "Billings Clinic Hospital",
+               "PIONEER MEDICAL CENTER",
+               "STILLWATER BILLINGS CLINIC RHC",
+               "WHEATLAND MEMORIAL HEALTHCARE",
+               "LIVINGSTON HEALTHCARE",
+               "Daniels Memorial Healthcare Center",
+               "ROUNDUP MEMORIAL HEALTHCARE",
+               "GLENDIVE MEDICAL CENTER",
+               "STILLWATER BILLINGS CLINIC",
+               "SHERIDAN MEMORIAL HOSPITAL ASSOCIATION",
+               "NORTH BIG HORN HOSPITAL",
+               "BEARTOOTH BILLINGS CLINIC"
+               ) # these locations have either 24/7 emergency services or an ER listed on their website.
+
+df.new <- df %>% 
+  mutate(
+    return_in_14_sdc = if_else(
+      return_in_14 == TRUE & return_NurseUnit %in% SDC,
+      TRUE,
+      FALSE
+    ),
+    return_types = if_else(
+      return_in_14 == TRUE & return_Building %in% SDC,
+      "SDC",
+      if_else(
+        return_in_14 == TRUE & return_Building %in% hospitals,
+        "Hospital",
+        "No return"
+      )
+    )
+  )
+
+```
+
+## General Trends
+
+
+```{r genTab1}
+library(compareGroups)
+
+tab1 <- descrTable(~., df.new)
+export2md(tab1)
+
+```
+
+```{r gentrends}
+
+title <- paste("Encounters by time of year and ", respVar, sep = "")
+
+d.frame %>% 
+  ggplot(
+    aes(DTS, fill= .data[[respVar]])
+  ) +
+  geom_histogram(bins = 36, alpha = 0.75) +
+  theme_classic() +
+  labs(
+    title = title,
+    x = "Date",
+    y = "Total Visits",
+    fill = respVar
+  )
+
+# plot: number of visits to SDC/EC
+traffic <- d.frame %>% 
+  group_by(
+    PersonID
+  ) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  ungroup()
+
+traffic %>% 
+  ggplot(
+    aes(n)
+  ) +
+  geom_histogram(binwidth = 1) +
+  scale_y_log10() +
+  theme_classic() +
+  labs(
+    title = "Distribution of Number of Visits to SDC/EC",
+    x = "Number of Visits",
+    y = "Log10 of Number of Individuals",
+    caption = "This depicts the number of individuals making a specified number of visits to SDC/EC during the years 2017-2019."
+  )
+```
+
+
+<!-- ## Exploring Geography | Where are they from? -->
+
+<!-- In progress -->
+
+<!-- - what proportion of SDC encounters from each neighborhood results in a return? A return to SDC or to other facility? -->
+
+## Exploring Reasons for Visit
+
+![Perplexity Plot Plot](C:\Users\CarteB\BILLINGS CLINIC\CSI & David Hedges - Same Day Care Project\R\analyses\perplexityPlot_ReasonForVisit.jpeg)
+
+A Latent Dirichlet Analysis was used for exploratory topic modelling. There appear to be approximately 100 different categories for reasons for visit to SDC/EC. The lowest perplexity score was achieved with 97 different groups. This has been combined with the dataset for XGBoost.
+
+## Questions to explore:
+
+Is this correlated with ICD-10?
+
+How accurate are the groups? (remove numbers from dtm, rectify acronyms, find CC lexicon)
+
+
+# Returns to in 14 days to any location
+## Descriptive analyses
+```{r echo=FALSE, results='asis'}
+# make data frames for response variable and data
+y.var <- "return_in_14"
+
+# send data to rmd
+params=list(respVar = y.var,
+            d.frame = df.new)
+
+res <- knitr::knit_child('descriptiveAnalysis.Rmd')
+cat(res, sep = '\n')
+```
+
+## XGBoost
+
+For this analysis, only variables know at or close to the time of the original SDC/EC encounter were included.
+
+```{r xgboost, echo=FALSE, results='asis'}
+
+# data prep
+d.frame <- df %>% mutate(
+    return_in_14 = as.numeric(return_in_14)
+  ) %>% 
+  select(
+    -c(ICD, 
+       ICD_block, 
+       ICD_all, 
+       ICD_block_all, 
+       NAME, 
+       BC_Ethnicity,
+       city,
+       state,
+       ZipCode,
+       census_block,
+       census_tract,
+       geoid_block,
+       Building,
+       NurseUnit,
+       return_ICD_all,
+       return_ICD_block_all,
+       return_DiagnosisDSC_all,
+       ReasonForVisit,
+       ReasonForVisit_all,
+       DiagnosisPrioritySEQ,
+       DiagnosisType,
+       DiagnosisDSC,
+       days_to_return,
+       return_Building,
+       return_NurseUnit,
+       dist_eu_pt_return,
+       id,
+       FIPS,
+       PersonID,
+       DTS,
+       state_fips,
+       county_fips,
+       DiagnosisDSC_all,
+       return_ReasonForVisit_all,
+       geoid_tract,
+       country,
+       Religion,
+       Fed_Ethnicity,
+       po_box)
+  ) %>% 
+    left_join(
     ICD,
     by = c("ICD_code" = "code")
   ) %>% 
@@ -65,37 +345,83 @@ df <- df %>%
   mutate(
     topic = as.character(topic)
   )
+
+# make data frames for response variable and data
+y.var <- "return_in_14"
+
+# send data to rmd
+params=list(respVar = y.var,
+            d.frame = d.frame)
+
+res <- knitr::knit_child('xgboost.Rmd')
+cat(res, sep = '\n')
+
 ```
 
-
-This is a global report of all parts of the SDC project.
-
-# Introduction
-
-```{r child='introduction.Rmd'}
-```
-
-
-# Descriptive analyses
-
-## Returns to in 14 days
+# Returns to hospital(s) 24 hours after and within 14 days of SDC/EC visit
 ```{r child='descriptiveAnalysis.Rmd'}
 ```
 
-## Returns to hospital after 24 hours and within 14 days
-```{r child='descriptiveAnalysis.Rmd'}
+# Frequent Fliers
+
+```{r makeFfDf}
+df.ff <- df %>%
+  group_by(
+    PersonID,
+    NurseUnit
+  ) %>% 
+  summarise(
+    `TotalVisits` = n()
+  ) %>% 
+  ungroup() %>%
+  filter(
+    NurseUnit %in% SDC
+  ) %>% 
+  group_by(
+    PersonID
+  ) %>% 
+  summarise(
+    TotalSdcVisits = sum(TotalVisits)
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    frequentFlier = if_else(
+      `TotalSdcVisits` >= quantile(TotalSdcVisits, 
+                                prob = 0.95, 
+                                na.rm = TRUE),
+      "Frequent flier",
+      "Infrequent flier"
+    )
+  ) %>% 
+  select(
+    -TotalSdcVisits
+  ) %>% 
+  right_join(
+    df,
+    by = c("PersonID" = "PersonID")
+  )
+
+df.ff <- df.ff %>% 
+  mutate(
+    frequentFlier = if_else(
+      is.na(frequentFlier),
+      "Infrequent flier",
+      frequentFlier
+    )
+  )
+
+ff.comp <- compareGroups(frequentFlier ~  Total_SDC_Visits+return_in_14_sdc+return_in_14+Sex+AdmitAge+Race+Fed_Ethnicity+tribal_affil+RUCC_2013+median_income_2018+median_home_value_2018+dist_eu_pt_sdc+dist_eu_pt_return,
+                         df.ff,
+                         max.xlev = 55)
+
+ff.comp %>% createTable(show.all = TRUE, show.p.overall = FALSE) %>% export2md()
+
 ```
 
-## Frequenct Fliers
+"Frequent fliers" were identified as follows: the number of visits to a Same Day Care facility during 2017-2019 were counted. Individuals in the 95$^{th}$ percentile of this distribution were then indentified. Visits to Express Care facilities were not included in the total number of visits.
+
 ```{r child='descriptiveAnalysis.Rmd'}
 ```
-
-
-# NLP & Predicting return from Reason for Visit
-
-![Perplexity Plot Plot](C:\Users\CarteB\BILLINGS CLINIC\CSI & David Hedges - Same Day Care Project\R\analyses\perplexityPlot_ReasonForVisit.jpeg)
-
-A Latent Dirichlet Analysis was used for exploratory topic modelling. There appear to be approximately 100 different categories for reasons for visit to SDC/EC. The lowest perplexity score was achieved with 97 different groups. This has been combined with the dataset for XGBoost.
 
 # XGBoost and opening the black box
 
@@ -195,6 +521,32 @@ cat(res, sep = '\n')
 ## What is it?
 
 Sequence and Association mining are methods by which events are queried to determine if there is a correlation between them. Sequence mining considers the temporal order of events while association mining is agnoistic to temporal order.
+
+## Does the priority ICD appear in the return list?
+
+```{r returnICD}
+
+d.frame <- d.frame %>% 
+  mutate(
+    priority_in_return = stringr::str_detect(
+      ICD_code,
+      return_ICD_all
+    )
+  )
+
+n.return <- length(d.frame$priority_in_return[d.frame$return_in_14 == TRUE & d.frame$priority_in_return == TRUE])
+
+n.return.per <- round(100*n.return/nrow(d.frame[d.frame$return_in_14 == TRUE,]), 2)
+
+n.sdc <- length(d.frame$priority_in_return[d.frame$return_in_14_sdc == TRUE & d.frame$priority_in_return == TRUE])
+
+n.sdc.per <- round(100*n.sdc/nrow(d.frame[d.frame$return_in_14_sdc == TRUE,]), 2)
+
+```
+
+# Priority ICD-10 Reappearance
+
+The priority ICD-10 reappears in `r n.return.per`% (n = `r n.return`) of cases returning within the next two weeks or `r n.sdc.per`% (n = `r n.sdc`).
 
 # Conclusion
 
