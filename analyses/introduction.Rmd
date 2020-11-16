@@ -36,7 +36,9 @@ output: html_document
   - Distance travelled to SDC/EC location was calculated as the geographic distance between the home address and SDC/EC facility. Street address was not retained in the final dataset, however city, state, postal code and country were retained.
 - Exploratory topic modeling on Reason for Visit in [R via BAT](https://github.com/btcarter/sameDayCare/blob/master/analyses/nlp.R).
 
+# Filtered
+- SDC encounters with a return to Roundup Memorial Clinic b/c we can't query the data for return information.
+
 # Revisions
-- Return is now in days (not hours, a mistake in v0.1)
-- Topic modelling not added (discovered return time error too late to run it again).
-- Added RUCC, median home value, median household income, Euclidean distance to SDC/EC facility as well as distance to return facility, returning ICD list, Diagnosis and Reason for visit.
+- Added investigation into 'Frequent Fliers' and returns only to Billings Clinic Hospital.
+- Containerized report to decrease production time.
