@@ -7,8 +7,6 @@ output:
     code_folding: hide
     toc: true
     toc_float: true
-    fig_width: 6
-    fig_height: 12
 ---
 
 ```{r include=FALSE}
@@ -18,6 +16,7 @@ knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE)
 ```{r dataLoadPrep}
 # packagaes
 library(dplyr)
+library(tidyr)
 library(icd.data) # for reading in ICD10 classifying information; also consider packages: comorbidity, icd
 
 # paths
@@ -72,7 +71,7 @@ df <- df %>% # add topics for encounters and ICD code chapters for Priority ICD-
     return_Building != "ROUNDUP MEMORIAL CLINIC"
   )
 
-geo.rows <- c("state_fips",
+geo.vars <- c("state_fips",
               "FIPS",
               "county_fips",
               "RUCC_2013",
@@ -99,13 +98,13 @@ return.vars <- c("return_ICD_all",
                  "return_Building",
                  "return_NurseUnit")
 
-df[return.vars] <- replace_na(df[return.vars], "No return")
+# df[return.vars] <- replace_na(df[return.vars], "No return")
 
 return.vars <- union(return.vars,
                      "days_to_return")
 
 
-start.rows <- setdiff(names(df), c(geo.rows, return.vars))
+start.rows <- setdiff(names(df), c(geo.vars, return.vars))
 
 ```
 
@@ -123,11 +122,11 @@ total <- nrow(df)
 completed <- complete.cases(df[start.rows])
 sum_completed_no_geo <- sum(completed)
 
-completed <- complete.cases(df[c(start.rows, geo.rows)])
+completed <- complete.cases(df[c(start.rows, geo.vars)])
 sum_completed_geo <- sum(completed)
 ```
 
-A total of `r nrow(df)` cases were identified. Of these cases only `r sum_completed_no_geo` had complete case information, when including geographic information (defined as a resendential address recognized by the Census Geocoding API) the number of complete cases drops to `r sum_completed_geo`. This represents only `r 100*sum_completed_geo/nrow(df)`% of the original dataset, and this is after the data were programatically curated. A manual curation might recover some cases, or exclude others. In many cases, address data were incomplete (e.g. the street field was not completed), incorrect (e.g. a state was entered in place of a zip code), or inappropriate (e.g. a PO box address was listed as a resedential address). In some cases adhoc entries were used to indicate homelessness, however these entries were not standardized, making a manual curation unrealistic.
+A total of `r nrow(df)` cases were identified. Of these cases only `r sum_completed_no_geo` had complete case information, when including geographic information (defined as a resendential address recognized by the Census Geocoding API) the number of complete cases drops to `r sum_completed_geo`. This represents only `r 100*sum_completed_geo/nrow(df)`% of the original dataset, and this is after the data were programatically curated. A manual curation might recover some cases, or exclude others. In many cases, address data were incomplete (e.g. the street field was not completed), incorrect (e.g. a state was entered in place of a zip code), or inappropriate (e.g. a PO box address was listed as a residential address). In some cases adhoc entries were used to indicate homelessness (e.g. 1234 Homeless street), however these entries were not standardized, making a manual curation unrealistic.
 
 It is recommended that address data be strictly regulated. The distinction between a mailing address and resendential address should be enforced. The entry of homelessness should be standardized, perhaps in a separate field.
 
@@ -152,31 +151,13 @@ hospitals <- c("BIllings Clinic Downtown",
                "WHEATLAND MEMORIAL HEALTHCARE",
                "LIVINGSTON HEALTHCARE",
                "Daniels Memorial Healthcare Center",
-               "ROUNDUP MEMORIAL HEALTHCARE",
+               # "ROUNDUP MEMORIAL HEALTHCARE",
                "GLENDIVE MEDICAL CENTER",
                "STILLWATER BILLINGS CLINIC",
                "SHERIDAN MEMORIAL HOSPITAL ASSOCIATION",
                "NORTH BIG HORN HOSPITAL",
                "BEARTOOTH BILLINGS CLINIC"
                ) # these locations have either 24/7 emergency services or an ER listed on their website.
-
-df.new <- df %>% 
-  mutate(
-    return_in_14_sdc = if_else(
-      return_in_14 == TRUE & return_NurseUnit %in% SDC,
-      TRUE,
-      FALSE
-    ),
-    return_types = if_else(
-      return_in_14 == TRUE & return_Building %in% SDC,
-      "SDC",
-      if_else(
-        return_in_14 == TRUE & return_Building %in% hospitals,
-        "Hospital",
-        "No return"
-      )
-    )
-  )
 
 ```
 
@@ -186,16 +167,19 @@ df.new <- df %>%
 ```{r genTab1}
 library(compareGroups)
 
-tab1 <- descrTable(~., df.new)
+tab1 <- descrTable(~., df)
 export2md(tab1)
 
 ```
 
 ```{r gentrends}
+library(ggplot2)
+
+respVar <- "return_in_14"
 
 title <- paste("Encounters by time of year and ", respVar, sep = "")
 
-d.frame %>% 
+df %>% 
   ggplot(
     aes(DTS, fill= .data[[respVar]])
   ) +
@@ -209,7 +193,7 @@ d.frame %>%
   )
 
 # plot: number of visits to SDC/EC
-traffic <- d.frame %>% 
+traffic <- df %>% 
   group_by(
     PersonID
   ) %>% 
@@ -234,12 +218,6 @@ traffic %>%
 ```
 
 
-<!-- ## Exploring Geography | Where are they from? -->
-
-<!-- In progress -->
-
-<!-- - what proportion of SDC encounters from each neighborhood results in a return? A return to SDC or to other facility? -->
-
 ## Exploring Reasons for Visit
 
 ![Perplexity Plot Plot](C:\Users\CarteB\BILLINGS CLINIC\CSI & David Hedges - Same Day Care Project\R\analyses\perplexityPlot_ReasonForVisit.jpeg)
@@ -261,7 +239,7 @@ y.var <- "return_in_14"
 
 # send data to rmd
 params=list(respVar = y.var,
-            d.frame = df.new)
+            d.frame = df)
 
 res <- knitr::knit_child('descriptiveAnalysis.Rmd')
 cat(res, sep = '\n')
@@ -317,33 +295,6 @@ d.frame <- df %>% mutate(
        Religion,
        Fed_Ethnicity,
        po_box)
-  ) %>% 
-    left_join(
-    ICD,
-    by = c("ICD_code" = "code")
-  ) %>% 
-  mutate(
-    EncounterID = as.character(EncounterID)
-  ) %>% 
-  left_join(
-    tops$gammas,
-    by = c("EncounterID" = "document")
-  ) %>%
-  select(
-    -c(
-      EncounterID,
-      ICD_code,
-      billable,
-      short_desc,
-      long_desc,
-      three_digit,
-      major,
-      sub_chapter,
-      gamma
-    )
-  ) %>%
-  mutate(
-    topic = as.character(topic)
   )
 
 # make data frames for response variable and data
@@ -410,29 +361,37 @@ df.ff <- df.ff %>%
     )
   )
 
-ff.comp <- compareGroups(frequentFlier ~  Total_SDC_Visits+return_in_14_sdc+return_in_14+Sex+AdmitAge+Race+Fed_Ethnicity+tribal_affil+RUCC_2013+median_income_2018+median_home_value_2018+dist_eu_pt_sdc+dist_eu_pt_return,
-                         df.ff,
-                         max.xlev = 55)
-
-ff.comp %>% createTable(show.all = TRUE, show.p.overall = FALSE) %>% export2md()
+# ff.comp <- compareGroups(frequentFlier ~  Total_SDC_Visits+return_in_14_sdc+return_in_14+Sex+AdmitAge+Race+Fed_Ethnicity+tribal_affil+RUCC_2013+median_income_2018+median_home_value_2018+dist_eu_pt_sdc+dist_eu_pt_return,
+#                          df.ff,
+#                          max.xlev = 55)
+# 
+# ff.comp %>% createTable(show.all = TRUE, show.p.overall = FALSE) %>% export2md()
 
 ```
 
 "Frequent fliers" were identified as follows: the number of visits to a Same Day Care facility during 2017-2019 were counted. Individuals in the 95$^{th}$ percentile of this distribution were then indentified. Visits to Express Care facilities were not included in the total number of visits.
 
-```{r child='descriptiveAnalysis.Rmd'}
+```{r ff_descr, echo=FALSE, results='asis'}
+# make data frames for response variable and data
+y.var <- "frequentFlier"
+
+# send data to rmd
+params=list(respVar = y.var,
+            d.frame = df.ff)
+
+res <- knitr::knit_child('descriptiveAnalysis.Rmd')
+cat(res, sep = '\n')
+
 ```
 
-# XGBoost and opening the black box
+## XGBoost and opening the black box
 
 For this analysis, only variables know at or close to the time of the original SDC/EC encounter were preserved.
 
-```{r xgboost, echo=FALSE, results='asis'}
+```{r ff_xgboost, echo=FALSE, results='asis'}
 
 # data prep
-d.frame <- df %>% mutate(
-    return_in_14 = as.numeric(return_in_14)
-  ) %>% 
+d.frame <- df.ff %>% 
   select(
     -c(ICD, 
        ICD_block, 
@@ -473,33 +432,6 @@ d.frame <- df %>% mutate(
        Religion,
        Fed_Ethnicity,
        po_box)
-  ) %>% 
-    left_join(
-    ICD,
-    by = c("ICD_code" = "code")
-  ) %>% 
-  mutate(
-    EncounterID = as.character(EncounterID)
-  ) %>% 
-  left_join(
-    tops$gammas,
-    by = c("EncounterID" = "document")
-  ) %>%
-  select(
-    -c(
-      EncounterID,
-      ICD_code,
-      billable,
-      short_desc,
-      long_desc,
-      three_digit,
-      major,
-      sub_chapter,
-      gamma
-    )
-  ) %>%
-  mutate(
-    topic = as.character(topic)
   )
 
 # make data frames for response variable and data
@@ -514,15 +446,7 @@ cat(res, sep = '\n')
 
 ```
 
-# Sequence and Association Mining
-
-## Status: In Progress
-
-## What is it?
-
-Sequence and Association mining are methods by which events are queried to determine if there is a correlation between them. Sequence mining considers the temporal order of events while association mining is agnoistic to temporal order.
-
-## Does the priority ICD appear in the return list?
+# Does the priority ICD appear in the return list?
 
 ```{r returnICD}
 
@@ -547,6 +471,20 @@ n.sdc.per <- round(100*n.sdc/nrow(d.frame[d.frame$return_in_14_sdc == TRUE,]), 2
 # Priority ICD-10 Reappearance
 
 The priority ICD-10 reappears in `r n.return.per`% (n = `r n.return`) of cases returning within the next two weeks or `r n.sdc.per`% (n = `r n.sdc`).
+
+# Sequence and Association Mining
+
+## Status: In Progress
+
+## What is it?
+
+Sequence and Association mining are methods by which events are queried to determine if there is a correlation between them. Sequence mining considers the temporal order of events while association mining is agnoistic to temporal order.
+
+
+# Exploring Geography | Where are they from?
+
+In progress
+- What proportion of SDC encounters from each neighborhood results in a return? A return to SDC or to other facility? Are there hotspots?
 
 # Conclusion
 
