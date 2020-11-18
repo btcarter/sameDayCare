@@ -9,7 +9,7 @@ output:
     toc_float: true
     fig_width: 6
     fig_height: 12
-    df_print: paged
+    d.frame_print: paged
 params:
   respVar: "return_in_14"
   d.frame: "did you forget me?"
@@ -28,7 +28,7 @@ library(caret)
 
 dummy <- dummyVars(" ~ .", data=params$d.frame)
 newdata <- data.frame(predict(dummy, newdata = params$d.frame))
-df <- newdata
+d.frame <- newdata
 
 ```
 
@@ -37,30 +37,32 @@ df <- newdata
 
 ```{r correlations}
 
-var.list <- colnames(df)
+var.list <- setdiff(colnames(d.frame), params$respVar)
 
-res.df <- data.frame()
+res.d.frame <- data.frame()
 
 for (var in var.list){
-  Test <- cor.test(x = df[[params$respVar]], y = df[[var]])
+  Test <- cor.test(x = d.frame[[params$respVar]], y = d.frame[[var]])
 
   res <- data.frame("variable" = var,
                     "R2" = Test$estimate,
                     "p.val" = Test$p.value)
-  res.df <- rbind(res.df, res)
+  res.d.frame <- rbind(res.d.frame, res)
 }
 
 
-top_50 <- res.df %>% slice_min(p.val, n = 50)
+top_50 <- res.d.frame %>% slice_min(p.val, n = 50)
 top_50 <- top_50$variable
 
 print(paste("Features highly correlated with ", params$respVar, sep=""))
 
 top_50
 
-df <- df %>%
+d.frame <- d.frame %>%
   select(
-    all_of(top_50)
+    all_of(
+      union(top_50, respVar)
+    )
   )
 
 
@@ -75,8 +77,8 @@ df <- df %>%
 
 # Create Training Data
 
-input_ones <- df[which(df[[params$respVar]] == 1), ] # all 1's
-input_zeros <- df[which(df[[params$respVar]] == 0), ] # all 0's
+input_ones <- d.frame[which(d.frame[[params$respVar]] == 1), ] # all 1's
+input_zeros <- d.frame[which(d.frame[[params$respVar]] == 0), ] # all 0's
 nrow(input_ones)
 nrow(input_zeros)
 
@@ -159,7 +161,7 @@ auc_ROCR_train <- auc_ROCR_train@y.values[[1]]
 pred_ROCR <- prediction(pred_prob_test, y_test[,1])
 auc_ROCR_test <- performance(pred_ROCR, measure = 'auc')
 auc_ROCR_test <- auc_ROCR_test@y.values[[1]]
-auc_ROCR_test
+
 ```
 
 AUC Train: `r auc_ROCR_train`
@@ -200,7 +202,6 @@ mat.plot$Feature <- factor(mat.plot$Feature,
                                                            decreasing = FALSE)])
 
 mat.plot %>% 
-  slice_max(10) %>% 
   ggplot(aes(Feature, Gain)) +
   geom_bar(stat = "identity") +
   coord_flip() +
@@ -208,37 +209,37 @@ mat.plot %>%
 ```
 
 
-# Logistic model
+<!-- # Logistic model -->
 
-```{r logisticModel}
+<!-- ```{r logisticModel} -->
 
-# compare to a simple logistic model
-log.mod <- glm(y_train ~ X_train, df,
-    family = "binomial")
+<!-- # compare to a simple logistic model -->
+<!-- log.mod <- glm(y_train ~ X_train, d.frame, -->
+<!--     family = "binomial") -->
 
-pred.res <- predict(log.mod, as.data.frame(X_test))
+<!-- pred.res <- predict(log.mod, as.data.frame(X_test)) -->
 
-# evaluate
-pred_prob_train <- predict(log.mod, as.data.frame(X_train))
-pred_prob_test <- predict(log.mod, as.data.frame(X_test))
+<!-- # evaluate -->
+<!-- pred_prob_train <- predict(log.mod, as.data.frame(X_train)) -->
+<!-- pred_prob_test <- predict(log.mod, as.data.frame(X_test)) -->
 
-# AUC
-library(ROCR)
-pred_ROCR <- prediction(pred_prob_train, y_train[,1])
-auc_ROCR_train <- performance(pred_ROCR, measure = 'auc')
-auc_ROCR_train <- auc_ROCR_train@y.values[[1]]
+<!-- # AUC -->
+<!-- library(ROCR) -->
+<!-- pred_ROCR <- prediction(pred_prob_train, y_train[,1]) -->
+<!-- auc_ROCR_train <- performance(pred_ROCR, measure = 'auc') -->
+<!-- auc_ROCR_train <- auc_ROCR_train@y.values[[1]] -->
 
-pred_ROCR <- prediction(pred_prob_test, y_test[,1])
-auc_ROCR_test <- performance(pred_ROCR, measure = 'auc')
-auc_ROCR_test <- auc_ROCR_test@y.values[[1]]
+<!-- pred_ROCR <- prediction(pred_prob_test, y_test[,1]) -->
+<!-- auc_ROCR_test <- performance(pred_ROCR, measure = 'auc') -->
+<!-- auc_ROCR_test <- auc_ROCR_test@y.values[[1]] -->
 
-```
+<!-- ``` -->
 
-AUC Train: `r auc_ROCR_train`
-AUC Test: `r auc_ROCR_test`
-Train/Test: `r auc_ROCR_train/auc_ROCR_test`
+<!-- AUC Train: `r auc_ROCR_train` -->
+<!-- AUC Test: `r auc_ROCR_test` -->
+<!-- Train/Test: `r auc_ROCR_train/auc_ROCR_test` -->
 
-```{r logisticSum}
-summary(log.mod)
-```
+<!-- ```{r logisticSum} -->
+<!-- summary(log.mod) -->
+<!-- ``` -->
 
