@@ -224,7 +224,7 @@ traffic %>%
 
 A Latent Dirichlet Analysis was used for exploratory topic modelling. There appear to be approximately 100 different categories for reasons for visit to SDC/EC. The lowest perplexity score was achieved with 97 different groups. This has been combined with the dataset for XGBoost.
 
-## Questions to explore:
+0## Questions to explore:
 
 Is this correlated with ICD-10?
 
@@ -250,59 +250,37 @@ cat(res, sep = '\n')
 For this analysis, only variables know at or close to the time of the original SDC/EC encounter were included.
 
 ```{r xgboost, echo=FALSE, results='asis'}
+vars.ml <- c(
+  "RUCC_2013",
+  "AdmitAge",
+  "Language",
+  "Race",
+  "Marital_Status",
+  "Sex",
+  "Religion_binary",
+  "Building",
+  "tribal_affil",
+  "Fed_Ethnicity",
+  "po_box",
+  "median_income_2018",
+  "median_home_value_2018",
+  "dist_eu_pt_sdc",
+  "dist_eu_pt_return",
+  "chapter",
+  "topic"
+)
 
-# data prep
-d.frame <- df %>% mutate(
-    return_in_14 = as.numeric(return_in_14)
-  ) %>% 
-  select(
-    -c(ICD, 
-       ICD_block, 
-       ICD_all, 
-       ICD_block_all, 
-       NAME, 
-       BC_Ethnicity,
-       city,
-       state,
-       ZipCode,
-       census_block,
-       census_tract,
-       geoid_block,
-       Building,
-       NurseUnit,
-       return_ICD_all,
-       return_ICD_block_all,
-       return_DiagnosisDSC_all,
-       ReasonForVisit,
-       ReasonForVisit_all,
-       DiagnosisPrioritySEQ,
-       DiagnosisType,
-       DiagnosisDSC,
-       days_to_return,
-       return_Building,
-       return_NurseUnit,
-       dist_eu_pt_return,
-       id,
-       FIPS,
-       PersonID,
-       DTS,
-       state_fips,
-       county_fips,
-       DiagnosisDSC_all,
-       return_ReasonForVisit_all,
-       geoid_tract,
-       country,
-       Religion,
-       Fed_Ethnicity,
-       po_box)
-  )
-
-# make data frames for response variable and data
+# make dataframe with complete cases for data
 y.var <- "return_in_14"
+
+df.ml <- df[vars.ml]
+df.ml[[y.var]] <- as.numeric(df[[y.var]])
+
+df.ml <- df.ml[complete.cases(df.ml),]
 
 # send data to rmd
 params=list(respVar = y.var,
-            d.frame = d.frame)
+            d.frame = df.ml)
 
 res <- knitr::knit_child('xgboost.Rmd')
 cat(res, sep = '\n')
@@ -310,167 +288,68 @@ cat(res, sep = '\n')
 ```
 
 # Returns to hospital(s) 24 hours after and within 14 days of SDC/EC visit
-```{r child='descriptiveAnalysis.Rmd'}
-```
+
 
 # Frequent Fliers
 
 ```{r makeFfDf}
-df.ff <- df %>%
-  group_by(
-    PersonID,
-    NurseUnit
-  ) %>% 
-  summarise(
-    `TotalVisits` = n()
-  ) %>% 
-  ungroup() %>%
-  filter(
-    NurseUnit %in% SDC
-  ) %>% 
-  group_by(
-    PersonID
-  ) %>% 
-  summarise(
-    TotalSdcVisits = sum(TotalVisits)
-  ) %>% 
-  ungroup() %>% 
-  mutate(
-    frequentFlier = if_else(
-      `TotalSdcVisits` >= quantile(TotalSdcVisits, 
-                                prob = 0.95, 
-                                na.rm = TRUE),
-      "Frequent flier",
-      "Infrequent flier"
-    )
-  ) %>% 
-  select(
-    -TotalSdcVisits
-  ) %>% 
-  right_join(
-    df,
-    by = c("PersonID" = "PersonID")
-  )
-
-df.ff <- df.ff %>% 
-  mutate(
-    frequentFlier = if_else(
-      is.na(frequentFlier),
-      "Infrequent flier",
-      frequentFlier
-    )
-  )
-
-# ff.comp <- compareGroups(frequentFlier ~  Total_SDC_Visits+return_in_14_sdc+return_in_14+Sex+AdmitAge+Race+Fed_Ethnicity+tribal_affil+RUCC_2013+median_income_2018+median_home_value_2018+dist_eu_pt_sdc+dist_eu_pt_return,
-#                          df.ff,
-#                          max.xlev = 55)
+# df.ff <- df %>%
+#   group_by(
+#     PersonID,
+#     NurseUnit
+#   ) %>%
+#   summarise(
+#     `TotalVisits` = n()
+#   ) %>%
+#   ungroup() %>%
+#   filter(
+#     NurseUnit %in% SDC
+#   ) %>%
+#   group_by(
+#     PersonID
+#   ) %>%
+#   summarise(
+#     TotalSdcVisits = sum(TotalVisits)
+#   ) %>%
+#   ungroup() %>%
+#   mutate(
+#     frequentFlier = if_else(
+#       `TotalSdcVisits` >= quantile(TotalSdcVisits,
+#                                 prob = 0.95,
+#                                 na.rm = TRUE),
+#       "Frequent flier",
+#       "Infrequent flier"
+#     )
+#   ) %>%
+#   select(
+#     -TotalSdcVisits
+#   ) %>%
+#   right_join(
+#     df,
+#     by = c("PersonID" = "PersonID")
+#   )
 # 
-# ff.comp %>% createTable(show.all = TRUE, show.p.overall = FALSE) %>% export2md()
+# df.ff <- df.ff %>%
+#   mutate(
+#     frequentFlier = if_else(
+#       is.na(frequentFlier),
+#       "Infrequent flier",
+#       frequentFlier
+#     )
+#   )
 
 ```
 
 "Frequent fliers" were identified as follows: the number of visits to a Same Day Care facility during 2017-2019 were counted. Individuals in the 95$^{th}$ percentile of this distribution were then indentified. Visits to Express Care facilities were not included in the total number of visits.
 
-```{r ff_descr, echo=FALSE, results='asis'}
-# make data frames for response variable and data
-y.var <- "frequentFlier"
-
-# send data to rmd
-params=list(respVar = y.var,
-            d.frame = df.ff)
-
-res <- knitr::knit_child('descriptiveAnalysis.Rmd')
-cat(res, sep = '\n')
-
-```
-
 ## XGBoost and opening the black box
 
 For this analysis, only variables know at or close to the time of the original SDC/EC encounter were preserved.
 
-```{r ff_xgboost, echo=FALSE, results='asis'}
-
-# data prep
-d.frame <- df.ff %>% 
-  select(
-    -c(ICD, 
-       ICD_block, 
-       ICD_all, 
-       ICD_block_all, 
-       NAME, 
-       BC_Ethnicity,
-       city,
-       state,
-       ZipCode,
-       census_block,
-       census_tract,
-       geoid_block,
-       Building,
-       NurseUnit,
-       return_ICD_all,
-       return_ICD_block_all,
-       return_DiagnosisDSC_all,
-       ReasonForVisit,
-       ReasonForVisit_all,
-       DiagnosisPrioritySEQ,
-       DiagnosisType,
-       DiagnosisDSC,
-       days_to_return,
-       return_Building,
-       return_NurseUnit,
-       dist_eu_pt_return,
-       id,
-       FIPS,
-       PersonID,
-       DTS,
-       state_fips,
-       county_fips,
-       DiagnosisDSC_all,
-       return_ReasonForVisit_all,
-       geoid_tract,
-       country,
-       Religion,
-       Fed_Ethnicity,
-       po_box)
-  )
-
-# make data frames for response variable and data
-y.var <- "return_in_14"
-
-# send data to rmd
-params=list(respVar = y.var,
-            d.frame = d.frame)
-
-res <- knitr::knit_child('xgboost.Rmd')
-cat(res, sep = '\n')
-
-```
 
 # Does the priority ICD appear in the return list?
 
-```{r returnICD}
-
-d.frame <- d.frame %>% 
-  mutate(
-    priority_in_return = stringr::str_detect(
-      ICD_code,
-      return_ICD_all
-    )
-  )
-
-n.return <- length(d.frame$priority_in_return[d.frame$return_in_14 == TRUE & d.frame$priority_in_return == TRUE])
-
-n.return.per <- round(100*n.return/nrow(d.frame[d.frame$return_in_14 == TRUE,]), 2)
-
-n.sdc <- length(d.frame$priority_in_return[d.frame$return_in_14_sdc == TRUE & d.frame$priority_in_return == TRUE])
-
-n.sdc.per <- round(100*n.sdc/nrow(d.frame[d.frame$return_in_14_sdc == TRUE,]), 2)
-
-```
-
 # Priority ICD-10 Reappearance
-
-The priority ICD-10 reappears in `r n.return.per`% (n = `r n.return`) of cases returning within the next two weeks or `r n.sdc.per`% (n = `r n.sdc`).
 
 # Sequence and Association Mining
 
