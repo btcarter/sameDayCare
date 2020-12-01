@@ -15,7 +15,12 @@ params:
   d.frame: "did you forget me?"
 ---
 
-```{r data}
+## XGBoost
+
+Only variables that are naturally available either during or shortly after a SDC/EC encounter were included in the model. Additional variables were also excluded due to limited computational power.
+
+```{r}
+knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE)
 # ENVIRONMENT ####
 
 # packages
@@ -32,10 +37,10 @@ d.frame <- newdata
 
 ```
 
-# Correlations between variables
+## Correlations between variables
 
 
-```{r correlations}
+```{r}
 
 var.list <- setdiff(colnames(d.frame), params$respVar)
 
@@ -61,16 +66,16 @@ top_50
 d.frame <- d.frame %>%
   select(
     all_of(
-      union(top_50, respVar)
+      union(top_50, params$respVar)
     )
   )
 
 
 ```
 
-# Gradient Boosting
+## Gradient Boosting
 
-```{r makeData}
+```{r}
 # David's code ####
 
 # Balance the Dataset
@@ -79,8 +84,8 @@ d.frame <- d.frame %>%
 
 input_ones <- d.frame[which(d.frame[[params$respVar]] == 1), ] # all 1's
 input_zeros <- d.frame[which(d.frame[[params$respVar]] == 0), ] # all 0's
-nrow(input_ones)
-nrow(input_zeros)
+# nrow(input_ones)
+# nrow(input_zeros)
 
 set.seed(100) # for repeatability of samples
 
@@ -101,10 +106,10 @@ X_test <- X_test[sample(nrow(X_test)),]
 
 # Extract y
 y_train <- X_train %>%
-  select(return_in_14)
+  select(params$respVar)
 
 y_test <- X_test %>%
-  select(return_in_14)
+  select(params$respVar)
 
 
 
@@ -114,9 +119,9 @@ label_drop <- c(params$respVar)
 X_train <- X_train[ , !(names(X_train) %in% label_drop)]
 X_test <- X_test[ , !(names(X_test) %in% label_drop)]
 
-nrow(X_train)
-
-nrow(y_train)
+# nrow(X_train)
+# 
+# nrow(y_train)
 
 # Prepare Matrix
 
@@ -128,7 +133,7 @@ y_test <- as.matrix(y_test)
 
 ```
 
-```{r gradientBoosting}
+```{r}
 # train model
 xg.model <- xgboost(
   data = X_train,
@@ -145,9 +150,9 @@ xg.model <- xgboost(
 )
 ```
 
-# AUC
+## AUC
 
-```{r auc}
+```{r}
 # evaluate
 pred_prob_train <- predict(xg.model, X_train)
 pred_prob_test <- predict(xg.model, X_test)
@@ -168,9 +173,9 @@ AUC Train: `r auc_ROCR_train`
 AUC Test: `r auc_ROCR_test`
 Train/Test: `r auc_ROCR_train/auc_ROCR_test`
 
-# Accuracy
+## Accuracy
 
-```{r accuracy}
+```{r}
 # Accuracy
 pred_ROCR <- prediction(pred_prob_train, y_train[,1])
 acc_ROCR_train <- performance(pred_ROCR, measure = 'acc')
@@ -186,9 +191,9 @@ ACC Train: `r acc_ROCR_train`
 ACC Test: `r acc_ROCR_test`
 Train/Test: `r acc_ROCR_train/acc_ROCR_test`
 
-# Factor Importance
+## Factor Importance
 
-```{r plotFactors}
+```{r}
 # take a peak at deciding factors
 mat <- xgb.importance(feature_names=colnames(X_train), model=xg.model)
 # xgb.plot.importance (importance_matrix = mat[1:32])
@@ -208,38 +213,4 @@ mat.plot %>%
   theme_classic()
 ```
 
-
-<!-- # Logistic model -->
-
-<!-- ```{r logisticModel} -->
-
-<!-- # compare to a simple logistic model -->
-<!-- log.mod <- glm(y_train ~ X_train, d.frame, -->
-<!--     family = "binomial") -->
-
-<!-- pred.res <- predict(log.mod, as.data.frame(X_test)) -->
-
-<!-- # evaluate -->
-<!-- pred_prob_train <- predict(log.mod, as.data.frame(X_train)) -->
-<!-- pred_prob_test <- predict(log.mod, as.data.frame(X_test)) -->
-
-<!-- # AUC -->
-<!-- library(ROCR) -->
-<!-- pred_ROCR <- prediction(pred_prob_train, y_train[,1]) -->
-<!-- auc_ROCR_train <- performance(pred_ROCR, measure = 'auc') -->
-<!-- auc_ROCR_train <- auc_ROCR_train@y.values[[1]] -->
-
-<!-- pred_ROCR <- prediction(pred_prob_test, y_test[,1]) -->
-<!-- auc_ROCR_test <- performance(pred_ROCR, measure = 'auc') -->
-<!-- auc_ROCR_test <- auc_ROCR_test@y.values[[1]] -->
-
-<!-- ``` -->
-
-<!-- AUC Train: `r auc_ROCR_train` -->
-<!-- AUC Test: `r auc_ROCR_test` -->
-<!-- Train/Test: `r auc_ROCR_train/auc_ROCR_test` -->
-
-<!-- ```{r logisticSum} -->
-<!-- summary(log.mod) -->
-<!-- ``` -->
 
