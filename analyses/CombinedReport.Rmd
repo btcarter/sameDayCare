@@ -67,10 +67,11 @@ df <- df %>% # add topics for encounters and ICD code chapters for Priority ICD-
   filter(
     !is.na(return_in_14)
   ) %>% 
-  filter(
-    return_Building != "ROUNDUP MEMORIAL CLINIC"
-  )
+  group_by(EncounterID) %>% 
+  slice_head() %>% 
+  ungroup()
 
+# fill in NA return information with "No return"
 geo.vars <- c("state_fips",
               "FIPS",
               "county_fips",
@@ -98,7 +99,19 @@ return.vars <- c("return_ICD_all",
                  "return_Building",
                  "return_NurseUnit")
 
-# df[return.vars] <- replace_na(df[return.vars], "No return")
+df[return.vars] <- replace_na(df[return.vars], list("return_ICD_all" = "No return",
+                                                    "return_ICD_block_all" = "No return",
+                                                    "return_DiagnosisDSC_all" = "No return",
+                                                    "return_ReasonForVisit_all" = "No return",
+                                                    "return_Building" = "No return",
+                                                    "return_NurseUnit" = "No return"
+                                                    )
+                              )
+
+df <- df %>% 
+  filter(
+    !(return_Building %in% c("ROUNDUP MEMORIAL HEALTHCARE", "ROUNDUP MEMORIAL CLINIC"))
+  )
 
 return.vars <- union(return.vars,
                      "days_to_return")
@@ -151,7 +164,6 @@ hospitals <- c("BIllings Clinic Downtown",
                "WHEATLAND MEMORIAL HEALTHCARE",
                "LIVINGSTON HEALTHCARE",
                "Daniels Memorial Healthcare Center",
-               # "ROUNDUP MEMORIAL HEALTHCARE",
                "GLENDIVE MEDICAL CENTER",
                "STILLWATER BILLINGS CLINIC",
                "SHERIDAN MEMORIAL HOSPITAL ASSOCIATION",
@@ -162,7 +174,6 @@ hospitals <- c("BIllings Clinic Downtown",
 ```
 
 ## General Trends
-
 
 ```{r genTab1}
 library(compareGroups)
@@ -217,6 +228,137 @@ traffic %>%
   )
 ```
 
+## ICD-10 Trends
+
+ICD-10 codes are ranked according to priority in the EMR, 0-99. I assume that smaller number denotes higher rank (since very few encounters have an ICD-10 code with a priority of 99 but all have at least one code with a priority of 0). How is the priority rank determined?
+
+Below are two tables with the ten most common ICD-10 codes found in SDC encounters that reappear in a subsequent encounter. This includes any code to appear associated with either encounter and is not limited to the priority code. The first lists the full ICD-10 code as found in the EMR. The second displays the three-digit code only (resulting in a smaller number of codes used overall).
+
+```{r}
+# How often does the Priority ICD-10 appear in the follow-up visit?
+
+split_it <- function(LIST){
+  y <- unlist(
+    strsplit(LIST, split = "; ")
+  )
+  return(y)
+}
+
+sum_it <- function(LIST1, LIST2){
+  b <- sum(split_it(LIST1) %in% split_it(LIST2))
+  return(b)
+}
+
+relist_it <- function(LIST1, LIST2){
+  x <- split_it(LIST1) %in% split_it(LIST2)
+  y <- paste(unlist(strsplit(LIST1, split = "; "))[x], collapse = "; ") 
+  return(y)
+}
+
+
+df.returning.icds <- df %>%
+  select(
+    EncounterID,
+    ICD_code,
+    ICD_all,
+    return_ICD_all,
+    ICD_block_all,
+    return_ICD_block_all
+  ) %>% 
+  group_by(EncounterID) %>% 
+  mutate(
+    priority_icd_appearance = if_else(
+      ICD_code %in% split_it(return_ICD_all),
+      TRUE,
+      FALSE
+    ),
+    any_icd_appearance = if_else(
+      sum_it(ICD_all, return_ICD_all) > 0,
+      TRUE,
+      FALSE
+    ),
+    reappearing_icds = if_else(
+      sum_it(ICD_all, return_ICD_all) > 0,
+      relist_it(ICD_all, return_ICD_all),
+      "Nothing"
+    ),
+    any_icd_block_appearance = if_else(
+      sum_it(ICD_block_all, return_ICD_block_all) > 0,
+      TRUE,
+      FALSE
+    ),
+    reappearing_icd_block = if_else(
+      sum_it(ICD_block_all, return_ICD_block_all) > 0,
+      relist_it(ICD_block_all, return_ICD_block_all),
+      "Nothing"
+    )
+  ) %>% 
+  ungroup()
+
+# How often does one of the ICD-10s appear in the follow-up?
+
+full.code.frq <- data.frame(codes = 
+                                 unlist(
+                                   strsplit(df.returning.icds$reappearing_icds, 
+                                            split = "; ")
+                                   )
+                               ) %>% 
+  group_by(codes) %>% 
+  summarise(n = n()) %>% 
+  arrange(
+    desc(n)
+  ) %>% 
+  filter(codes != "Nothing") %>% 
+  left_join(
+    ICD,
+    by = c("codes" = "code")
+  ) %>% 
+  select(
+    -c("billable", "long_desc", "three_digit")
+  )
+
+knitr::kable(full.code.frq %>% slice_head(n=10))
+
+block.frq <- data.frame(codes = 
+                                 unlist(
+                                   strsplit(df.returning.icds$reappearing_icd_block, 
+                                            split = "; ")
+                                   )
+                               ) %>% 
+  group_by(codes) %>% 
+  summarise(n = n()) %>% 
+  arrange(
+    desc(n)
+  ) %>% 
+  filter(codes != "Nothing") %>% 
+  left_join(
+    ICD,
+    by = c("codes" = "code")
+  ) %>% 
+  select(
+    -c("billable", "long_desc", "three_digit")
+  )
+
+knitr::kable(block.frq %>% slice_head(n=10))
+
+df <- df.returning.icds %>% 
+  select(
+    EncounterID,
+    priority_icd_appearance,
+    any_icd_appearance,
+    any_icd_block_appearance,
+    reappearing_icds,
+    reappearing_icd_block
+  ) %>% 
+  right_join(
+    df,
+    by = c("EncounterID" = "EncounterID")
+  )
+
+```
+
+A total of `r nrow(full.code.frq)` full codes and `r nrow(block.frq)` three-digit codes reappear in the subsequent encounter.
+
 
 ## Exploring Reasons for Visit
 
@@ -232,8 +374,7 @@ How accurate are the groups? (remove numbers from dtm, rectify acronyms, find CC
 
 
 # Returns to in 14 days to any location
-## Descriptive analyses
-```{r echo=FALSE, results='asis'}
+```{r results='asis'}
 # make data frames for response variable and data
 y.var <- "return_in_14"
 
@@ -243,11 +384,8 @@ params=list(respVar = y.var,
 
 res <- knitr::knit_child('descriptiveAnalysis.Rmd')
 cat(res, sep = '\n')
+
 ```
-
-## XGBoost
-
-For this analysis, only variables know at or close to the time of the original SDC/EC encounter were included.
 
 ```{r xgboost, echo=FALSE, results='asis'}
 vars.ml <- c(
@@ -287,69 +425,182 @@ cat(res, sep = '\n')
 
 ```
 
-# Returns to hospital(s) 24 hours after and within 14 days of SDC/EC visit
+# Returns to hospital(s) 24 hours after and within 14 days of SDC/EC visit with same ICD-10
 
+```{r}
+df.x <- df %>% 
+  mutate(
+    return = if_else(
+      days_to_return <= 14 & 
+        days_to_return > 1 & 
+        ICD_code %in% return_ICD_all &
+        return_Building %in% hospitals &
+        any_icd_block_appearance == TRUE,
+      TRUE,
+      FALSE
+    )
+  ) %>% 
+  select(
+    -return_in_14
+  )
+```
+
+```{r echo=FALSE, results='asis'}
+# make data frames for response variable and data
+y.var <- "return"
+
+# send data to rmd
+params=list(respVar = y.var,
+            d.frame = df.x)
+
+res <- knitr::knit_child('descriptiveAnalysis.Rmd')
+cat(res, sep = '\n')
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+vars.ml <- c(
+  "RUCC_2013",
+  "AdmitAge",
+  "Race",
+  "Marital_Status",
+  "Sex",
+  "Religion_binary",
+  "tribal_affil",
+  "Fed_Ethnicity",
+  "po_box",
+  "median_income_2018",
+  "median_home_value_2018",
+  "dist_eu_pt_sdc",
+  "dist_eu_pt_return",
+  "chapter",
+  "topic"
+)
+
+# make dataframe with complete cases for data
+y.var <- "return"
+
+df.ml <- df.x[vars.ml]
+df.ml[[y.var]] <- as.numeric(df.x[[y.var]])
+
+df.ml <- df.ml[complete.cases(df.ml),]
+
+# send data to rmd
+params=list(respVar = y.var,
+            d.frame = df.ml)
+
+res <- knitr::knit_child('xgboost.Rmd')
+cat(res, sep = '\n')
+
+```
 
 # Frequent Fliers
 
 ```{r makeFfDf}
-# df.ff <- df %>%
-#   group_by(
-#     PersonID,
-#     NurseUnit
-#   ) %>%
-#   summarise(
-#     `TotalVisits` = n()
-#   ) %>%
-#   ungroup() %>%
-#   filter(
-#     NurseUnit %in% SDC
-#   ) %>%
-#   group_by(
-#     PersonID
-#   ) %>%
-#   summarise(
-#     TotalSdcVisits = sum(TotalVisits)
-#   ) %>%
-#   ungroup() %>%
-#   mutate(
-#     frequentFlier = if_else(
-#       `TotalSdcVisits` >= quantile(TotalSdcVisits,
-#                                 prob = 0.95,
-#                                 na.rm = TRUE),
-#       "Frequent flier",
-#       "Infrequent flier"
-#     )
-#   ) %>%
-#   select(
-#     -TotalSdcVisits
-#   ) %>%
-#   right_join(
-#     df,
-#     by = c("PersonID" = "PersonID")
-#   )
-# 
-# df.ff <- df.ff %>%
-#   mutate(
-#     frequentFlier = if_else(
-#       is.na(frequentFlier),
-#       "Infrequent flier",
-#       frequentFlier
-#     )
-#   )
+df.x <- df %>%
+  group_by(
+    PersonID,
+    NurseUnit
+  ) %>%
+  summarise(
+    `TotalVisits` = n()
+  ) %>%
+  ungroup() %>%
+  filter(
+    NurseUnit %in% SDC
+  ) %>%
+  group_by(
+    PersonID
+  ) %>%
+  summarise(
+    TotalSdcVisits = sum(TotalVisits)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    frequentFlier = if_else(
+      `TotalSdcVisits` >= quantile(TotalSdcVisits,
+                                prob = 0.95,
+                                na.rm = TRUE),
+      "Frequent flier",
+      "Infrequent flier"
+    )
+  ) %>%
+  select(
+    -TotalSdcVisits
+  ) %>%
+  right_join(
+    df,
+    by = c("PersonID" = "PersonID")
+  )
+
+df.x <- df.x %>%
+  mutate(
+    frequentFlier = if_else(
+      is.na(frequentFlier),
+      "Infrequent flier",
+      frequentFlier
+    )
+  ) %>% 
+  mutate(
+    frequentFlier = if_else(
+      frequentFlier == "Frequent flier",
+      TRUE,
+      FALSE
+    )
+  )
 
 ```
 
 "Frequent fliers" were identified as follows: the number of visits to a Same Day Care facility during 2017-2019 were counted. Individuals in the 95$^{th}$ percentile of this distribution were then indentified. Visits to Express Care facilities were not included in the total number of visits.
 
-## XGBoost and opening the black box
 
-For this analysis, only variables know at or close to the time of the original SDC/EC encounter were preserved.
+```{r echo=FALSE, results='asis'}
+# make data frames for response variable and data
+y.var <- "frequentFlier"
 
+# send data to rmd
+params=list(respVar = y.var,
+            d.frame = df.x)
 
-# Does the priority ICD appear in the return list?
+res <- knitr::knit_child('descriptiveAnalysis.Rmd')
+cat(res, sep = '\n')
+```
 
-# Priority ICD-10 Reappearance
+```{r echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+vars.ml <- c(
+  "RUCC_2013",
+  "AdmitAge",
+  "Race",
+  "Marital_Status",
+  "Sex",
+  "Religion_binary",
+  "tribal_affil",
+  "Fed_Ethnicity",
+  "po_box",
+  "median_income_2018",
+  "median_home_value_2018",
+  "dist_eu_pt_sdc",
+  "dist_eu_pt_return",
+  "chapter",
+  "topic"
+)
+
+# make dataframe with complete cases for data
+y.var <- "frequentFlier"
+
+df.ml <- df.x[vars.ml]
+df.ml[[y.var]] <- as.numeric(df.x[[y.var]])
+
+df.ml <- df.ml[complete.cases(df.ml),]
+
+# send data to rmd
+params=list(respVar = y.var,
+            d.frame = df.ml)
+
+res <- knitr::knit_child('xgboost.Rmd')
+cat(res, sep = '\n')
+
+```
+
 
 # Sequence and Association Mining
 
