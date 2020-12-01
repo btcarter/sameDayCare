@@ -12,12 +12,12 @@ params:
   d.frame: "did you forget me?"
 ---
 
-```{r include=FALSE}
+```{r}
 knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE)
 ```
 
 
-```{r environment}
+```{r}
 # packages
 
 library(dplyr)
@@ -39,11 +39,11 @@ categorical.vars <- union(categorical.vars,
 
 ```
 
-# Overview
+## Descriptive and Univariate Analysis
 
-## Table 1
+### Table 1
 
-```{r table1}
+```{r}
 
 if (is.logical(d.frame[[respVar]])) {
   d.frame[[respVar]] <- as.factor(d.frame[[respVar]])
@@ -63,11 +63,11 @@ createTable(comp.obj, show.p.overall = FALSE, show.all = TRUE) %>% export2md(cap
 
 ```
 
-# Variables Associated with `r respVar`
+## Variables Associated with `r respVar`
 
-## Categorical factors
+### Categorical factors
 
-```{r chiOfCategoricals}
+```{r}
 
 cat_vars <- c("Fed_Ethnicity",
               "Language",
@@ -164,9 +164,9 @@ print(CatChiList)
 
 ```
 
-## Continuous Variables
+### Continuous Variables
 
-```{r continuousVars}
+```{r}
 col.df <- data.frame(name = colnames(d.frame))
 col.df$class <- apply(col.df, 1, function(x) class(d.frame[[x]]))
 
@@ -214,9 +214,9 @@ print(continuous.list)
 
 ```
 
-## ICD-10 Codes
+### Priority ICD-10 Codes
 
-```{r icd10codes}
+```{r}
 ## most common Priority ICD10
 df.icd.counts <- d.frame %>% 
   group_by(ICD_code, .data[[respVar]]) %>% 
@@ -307,9 +307,9 @@ knitr::kable(top50, caption = cappy) %>% kableExtra::kable_styling(bootstrap_opt
 
 ```
 
-## ICD-10 Chapters
+### Priority ICD-10 Chapters
 
-```{r icd10chapters, fig.height=8}
+```{r fig.height=8}
 ## most common ICD10 chapter
 df.icd.counts <- d.frame %>% 
   group_by(chapter, .data[[respVar]]) %>% 
