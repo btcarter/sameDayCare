@@ -341,6 +341,7 @@ block.frq <- data.frame(codes =
 
 knitr::kable(block.frq %>% slice_head(n=10))
 
+# how are they associated with return?
 df <- df.returning.icds %>% 
   select(
     EncounterID,
@@ -358,7 +359,6 @@ df <- df.returning.icds %>%
 ```
 
 A total of `r nrow(full.code.frq)` full codes and `r nrow(block.frq)` three-digit codes reappear in the subsequent encounter.
-
 
 ## Exploring Reasons for Visit
 
