@@ -356,6 +356,29 @@ df <- df.returning.icds %>%
     by = c("EncounterID" = "EncounterID")
   )
 
+# codes that reappear most often
+top <- df %>% 
+  filter(reappearing_icds != "Nothing") %>% 
+  group_by(reappearing_icds) %>% 
+  summarise(n = n()) %>% 
+  ungroup() %>% 
+  left_join(
+    ICD,
+    by = c("reappearing_icds" = "code")
+  ) %>% 
+  select(
+    chapter,
+    reappearing_icds,
+    short_desc,
+    n
+  ) %>% 
+  arrange(desc(n)) %>% 
+  slice_head(n=10) %>% 
+  arrange(chapter)
+
+knitr::kable(top,
+             caption = "ICD-10 codes and the number of times they reappear in a subsequent visit (n)") %>% kableExtra::collapse_rows(columns = 1, valign = "top")
+
 ```
 
 A total of `r nrow(full.code.frq)` full codes and `r nrow(block.frq)` three-digit codes reappear in the subsequent encounter.
