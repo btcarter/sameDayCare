@@ -108,9 +108,39 @@ df[return.vars] <- replace_na(df[return.vars], list("return_ICD_all" = "No retur
                                                     )
                               )
 
+joined <- c("Life Partner",
+            "Married")
+
+separated <- c("Divorced",
+               "Separated",
+               "Widowed")
+
+singles <- c("Not Obtained",
+             "Patient Refused",
+             "Single",
+             "Unknown")
+
+
 df <- df %>% 
   filter(
-    !(return_Building %in% c("ROUNDUP MEMORIAL HEALTHCARE", "ROUNDUP MEMORIAL CLINIC"))
+    !(return_Building %in% c("ROUNDUP MEMORIAL HEALTHCARE", "ROUNDUP MEMORIAL CLINIC")),
+    AdmitAge >= 18
+  ) %>% 
+  mutate(
+    RUCC_2013 = if_else(
+      RUCC_2013 <= 3,
+      "Urban",
+      "Rural"
+    ),
+    Marital_Status = if_else(
+      Marital_Status %in% joined,
+      "Married",
+      if_else(
+        Marital_Status %in% separated,
+        "Separated",
+        "Single"
+      )
+    )
   )
 
 return.vars <- union(return.vars,
