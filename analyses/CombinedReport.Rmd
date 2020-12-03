@@ -127,7 +127,7 @@ df <- df %>%
     AdmitAge >= 18
   ) %>% 
   mutate(
-    RUCC_2013 = if_else(
+    RUCC_2013_binary = if_else(
       RUCC_2013 <= 3,
       "Urban",
       "Rural"
