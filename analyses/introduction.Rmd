@@ -37,8 +37,8 @@ output: html_document
 - Exploratory topic modeling on Reason for Visit in [R via BAT](https://github.com/btcarter/sameDayCare/blob/master/analyses/nlp.R).
 
 # Filtered
-- SDC encounters with a return to Roundup Memorial Clinic were removed because we can't query the data for return information. This removed aproximately 33,000 encounters at SDC/EC facilities from the dataset.
+- SDC encounters with a return to Roundup Memorial Clinic were removed because we can't query the data for return information.
 
 # Revisions
-- Added investigation into 'Frequent Fliers' and returns only to Billings Clinic Hospital.
+- Added investigation into 'Frequent Fliers' and returns only to Billings Clinic Hospitals with an ER or emergency services.
 - Containerized report to decrease production time.
