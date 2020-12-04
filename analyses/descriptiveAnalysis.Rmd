@@ -13,11 +13,6 @@ params:
 ---
 
 ```{r}
-knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE)
-```
-
-
-```{r}
 # packages
 
 library(dplyr)
