@@ -140,6 +140,18 @@ df <- df %>%
         "Separated",
         "Single"
       )
+    ),
+    NurseUnit = if_else(
+      NurseUnit %in% c("SDC West Nurse",
+                       "WE Same Day Care",
+                       "West End SDC"),
+      "West End SDC",
+      if_else(
+        NurseUnit %in% c("Heights Same Day Care", 
+                         "HTS Same Day Care"),
+        "Heights Same Day Care",
+        NurseUnit
+      )
     )
   )
 
@@ -435,12 +447,13 @@ y.var <- "return_in_14"
 params=list(respVar = y.var,
             d.frame = df)
 
-res <- knitr::knit_child('descriptiveAnalysis.Rmd')
+
+res <- knitr::knit_child('descriptiveAnalysis.Rmd', quiet = TRUE)
 cat(res, sep = '\n')
 
 ```
 
-```{r xgboost, echo=FALSE, results='asis'}
+```{r xgboost, results='asis'}
 vars.ml <- c(
   "RUCC_2013",
   "AdmitAge",
@@ -473,7 +486,7 @@ df.ml <- df.ml[complete.cases(df.ml),]
 params=list(respVar = y.var,
             d.frame = df.ml)
 
-res <- knitr::knit_child('xgboost.Rmd')
+res <- knitr::knit_child('xgboost.Rmd', quiet = TRUE)
 cat(res, sep = '\n')
 
 ```
@@ -506,7 +519,7 @@ y.var <- "return"
 params=list(respVar = y.var,
             d.frame = df.x)
 
-res <- knitr::knit_child('descriptiveAnalysis.Rmd')
+res <- knitr::knit_child('descriptiveAnalysis.Rmd', quiet = TRUE)
 cat(res, sep = '\n')
 ```
 
@@ -541,7 +554,7 @@ df.ml <- df.ml[complete.cases(df.ml),]
 params=list(respVar = y.var,
             d.frame = df.ml)
 
-res <- knitr::knit_child('xgboost.Rmd')
+res <- knitr::knit_child('xgboost.Rmd', quiet = TRUE)
 cat(res, sep = '\n')
 
 ```
@@ -649,7 +662,7 @@ df.ml <- df.ml[complete.cases(df.ml),]
 params=list(respVar = y.var,
             d.frame = df.ml)
 
-res <- knitr::knit_child('xgboost.Rmd')
+res <- knitr::knit_child('xgboost.Rmd',quiet = TRUE)
 cat(res, sep = '\n')
 
 ```
