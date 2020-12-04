@@ -59,7 +59,7 @@ for (var in var.list){
 top_50 <- res.d.frame %>% slice_min(p.val, n = 50)
 top_50 <- top_50$variable
 
-print(paste("Features highly correlated with ", params$respVar, sep=""))
+print(paste("Features correlated with ", params$respVar, sep=""))
 
 top_50
 
@@ -211,6 +211,8 @@ mat.plot %>%
   geom_bar(stat = "identity") +
   coord_flip() +
   theme_classic()
+
+xgb.plot.tree(model = xg.model, trees = 0)
 ```
 
 
