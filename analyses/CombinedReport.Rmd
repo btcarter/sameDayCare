@@ -537,7 +537,6 @@ vars.ml <- c(
   "median_income_2018",
   "median_home_value_2018",
   "dist_eu_pt_sdc",
-  "dist_eu_pt_return",
   "chapter",
   "topic"
 )
@@ -558,6 +557,8 @@ res <- knitr::knit_child('xgboost.Rmd', quiet = TRUE)
 cat(res, sep = '\n')
 
 ```
+
+Of the `r nrow(df.ml)` complete cases entered into the model, only `r sum(df.ml$return)` were considered to have returned to a facility with an ER or EMS advertised. This is probably why the model only selected one feature.
 
 # Frequent Fliers
 
@@ -627,7 +628,7 @@ y.var <- "frequentFlier"
 params=list(respVar = y.var,
             d.frame = df.x)
 
-res <- knitr::knit_child('descriptiveAnalysis.Rmd')
+res <- knitr::knit_child('descriptiveAnalysis.Rmd', quiet = TRUE)
 cat(res, sep = '\n')
 ```
 
@@ -639,13 +640,10 @@ vars.ml <- c(
   "Marital_Status",
   "Sex",
   "Religion_binary",
-  "tribal_affil",
-  "Fed_Ethnicity",
   "po_box",
   "median_income_2018",
   "median_home_value_2018",
   "dist_eu_pt_sdc",
-  "dist_eu_pt_return",
   "chapter",
   "topic"
 )
@@ -662,7 +660,7 @@ df.ml <- df.ml[complete.cases(df.ml),]
 params=list(respVar = y.var,
             d.frame = df.ml)
 
-res <- knitr::knit_child('xgboost.Rmd',quiet = TRUE)
+res <- knitr::knit_child('xgboost.Rmd', quiet = TRUE)
 cat(res, sep = '\n')
 
 ```
