@@ -27,7 +27,7 @@ data.dir.path <- file.path("C:",
                            "CSI & David Hedges - Same Day Care Project", 
                            "data")
 
-df.name <- file.path(data.dir.path, "sdc.flat.xlsx")
+df.name <- file.path(data.dir.path, "sdc.flat2.xlsx")
 
 # get data
 df <- readxl::read_xlsx(df.name)
@@ -431,7 +431,7 @@ A total of `r nrow(full.code.frq)` full codes and `r nrow(block.frq)` three-digi
 
 A Latent Dirichlet Analysis was used for exploratory topic modelling. There appear to be approximately 100 different categories for reasons for visit to SDC/EC. The lowest perplexity score was achieved with 97 different groups. This has been combined with the dataset for XGBoost.
 
-0## Questions to explore:
+## Questions to explore:
 
 Is this correlated with ICD-10?
 
