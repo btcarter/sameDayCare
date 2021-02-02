@@ -64,7 +64,8 @@ createTable(comp.obj, show.p.overall = FALSE, show.all = TRUE) %>% export2md(cap
 
 ```{r}
 
-cat_vars <- c("Fed_Ethnicity",
+cat_vars <- c("any_icd_appearance",
+              "Fed_Ethnicity",
               "Language",
               "Race",
               "Marital_Status",
@@ -296,7 +297,7 @@ top50 <- df.icd.sig %>%
     by = c("ICD_code" = "code")
   )
 
-cappy <- paste("This table displays the top 50 ICD codes most associated with ", respVar, " values (TRUE or FALSE).", sep = "")
+cappy <- paste("This table displays the top 50 priority ICD codes most associated with ", respVar, " values (TRUE or FALSE).", sep = "")
 
 knitr::kable(top50, caption = cappy) %>% kableExtra::kable_styling(bootstrap_options = c("striped","condensed")) %>% kableExtra::scroll_box(width = "100%")
 
@@ -304,8 +305,8 @@ knitr::kable(top50, caption = cappy) %>% kableExtra::kable_styling(bootstrap_opt
 
 ### Priority ICD-10 Chapters
 
-```{r fig.height=8}
-## most common ICD10 chapter
+```{r fig.height=10}
+## most common priority ICD10 chapter
 df.icd.counts <- d.frame %>% 
   group_by(chapter, .data[[respVar]]) %>% 
   summarise(
@@ -372,6 +373,142 @@ residuals %>%
   theme_classic() +
   scale_color_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
   labs(
+    title = paste("Priority ICD Chapter Significance"),
+    y = respVar,
+    x = "Chapter",
+    size = "St. Residual",
+    shape = "Significance, p < 0.05"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  )
+
+```
+
+### All ICD-10 Codes
+
+```{r}
+resp.vec <- c("EncounterID", respVar) # get response var
+resp.vec <- d.frame %>% 
+  select(all_of(resp.vec))
+
+icd.vec <- c("EncounterID", "ICD_all") # get lists of ICDs
+icd.vec <- d.frame %>% # unzip ICD list
+  select(all_of(icd.vec)) %>% 
+    separate_rows(ICD_all, sep = "; ")
+
+ICD <- icd.data::icd10cm2016 %>% # join ICD list with ICD chapter names
+  mutate(
+    code = as.character(code)
+  ) %>% 
+  right_join(
+    icd.vec,
+    by = c("code" = "ICD_all")
+  ) %>% # join with response variable
+  left_join(
+    resp.vec,
+    by = c("EncounterID")
+  ) %>% 
+  select(
+    EncounterID,
+    code,
+    chapter,
+    params$respVar
+  )
+
+res <- chisq.test(ICD$code, ICD[[respVar]])
+res
+
+residuals <- data.frame(res$residuals) %>%
+  rename(
+    Residual = Freq
+  )
+    
+Zscores <- data.frame(100*res$residuals^2/res$statistic) %>% 
+  rename(
+    Z = Freq
+  ) %>% 
+  mutate(
+    Significant = if_else(
+      abs(Z) > 1.96,
+      TRUE,
+      FALSE
+    )
+  )
+    
+icdDf <- icd.data::icd10cm2016 %>% 
+  mutate(
+    code = as.character(code)
+  )
+
+res.tab <- residuals %>% 
+  left_join(Zscores) %>% 
+  filter(
+    Significant == TRUE
+  ) %>% 
+  mutate(
+    ICD.code = as.character(ICD.code)
+  ) %>% 
+  left_join(
+    icdDf,
+    by = c("ICD.code" = "code")
+  ) %>% 
+  select(
+    ICD.code,
+    major,
+    Residual,
+    Z,
+    Significant
+  ) %>% 
+  mutate(
+    major = as.character(major)
+  )
+
+res.tab$major[res.tab$ICD.code == "K8510"] <- "Biliary acute pancreatitis without necrosis or infection"
+
+knitr::kable(res.tab) %>% kableExtra::kable_styling(bootstrap_options = c("striped","condensed")) %>% kableExtra::scroll_box(width = "100%")
+
+```
+
+### All ICD-10 Chapters
+```{r}
+res <- chisq.test(ICD$chapter, ICD[[respVar]])
+res
+
+residuals <- data.frame(res$residuals) %>%
+  rename(
+    Residual = Freq
+  )
+    
+Zscores <- data.frame(100*res$residuals^2/res$statistic) %>% 
+  rename(
+    Z = Freq
+  ) %>% 
+  mutate(
+    Significant = if_else(
+      abs(Z) > 1.96,
+      TRUE,
+      FALSE
+    )
+  )
+    
+residuals <- residuals %>% 
+  left_join(Zscores)
+
+residuals %>%
+  ggplot(
+    aes(
+      ICD.chapter,
+      ICD..respVar..,
+      size = Z,
+      shape = Significant,
+      color = Residual
+    )
+  ) +
+  geom_point(alpha = 0.7) +
+  theme_classic() +
+  scale_color_gradient2(low = "#0000ff", mid = "#008000", high = "#ff0000") +
+  labs(
     title = paste("ICD Chapter Significance"),
     y = respVar,
     x = "Chapter",
@@ -383,3 +520,4 @@ residuals %>%
   )
 
 ```
+
