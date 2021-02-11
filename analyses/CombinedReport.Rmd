@@ -491,15 +491,15 @@ cat(res, sep = '\n')
 
 ```
 
-# Returns to hospital(s) 24 hours after and within 14 days of SDC/EC visit with same ICD-10
+# Returns to hospital(s) 24 hours after and within 14 days of SDC/EC visit with same ICD-10 present in record.
 
 ```{r}
 df.x <- df %>% 
   mutate(
     return = if_else(
       days_to_return <= 14 & 
-        days_to_return > 1 & 
-        ICD_code %in% return_ICD_all &
+        days_to_return > 1 &
+        # ICD_code %in% return_ICD_all &
         return_Building %in% hospitals &
         any_icd_block_appearance == TRUE,
       TRUE,
