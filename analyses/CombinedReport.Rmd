@@ -431,66 +431,6 @@ A total of `r nrow(full.code.frq)` full codes and `r nrow(block.frq)` three-digi
 
 A Latent Dirichlet Analysis was used for exploratory topic modelling. There appear to be approximately 100 different categories for reasons for visit to SDC/EC. The lowest perplexity score was achieved with 97 different groups. This has been combined with the dataset for XGBoost.
 
-## Questions to explore:
-
-Is this correlated with ICD-10?
-
-How accurate are the groups? (remove numbers from dtm, rectify acronyms, find CC lexicon)
-
-
-# Returns to in 14 days to any location
-```{r results='asis'}
-# make data frames for response variable and data
-y.var <- "return_in_14"
-
-# send data to rmd
-params=list(respVar = y.var,
-            d.frame = df)
-
-
-res <- knitr::knit_child('descriptiveAnalysis.Rmd', quiet = TRUE)
-cat(res, sep = '\n')
-
-```
-
-```{r xgboost, results='asis'}
-vars.ml <- c(
-  "RUCC_2013",
-  "AdmitAge",
-  "Language",
-  "Race",
-  "Marital_Status",
-  "Sex",
-  "Religion_binary",
-  "Building",
-  "tribal_affil",
-  "Fed_Ethnicity",
-  "po_box",
-  "median_income_2018",
-  "median_home_value_2018",
-  "dist_eu_pt_sdc",
-  "dist_eu_pt_return",
-  "chapter",
-  "topic"
-)
-
-# make dataframe with complete cases for data
-y.var <- "return_in_14"
-
-df.ml <- df[vars.ml]
-df.ml[[y.var]] <- as.numeric(df[[y.var]])
-
-df.ml <- df.ml[complete.cases(df.ml),]
-
-# send data to rmd
-params=list(respVar = y.var,
-            d.frame = df.ml)
-
-res <- knitr::knit_child('xgboost.Rmd', quiet = TRUE)
-cat(res, sep = '\n')
-
-```
-
 # Returns to hospital(s) 24 hours after and within 14 days of SDC/EC visit with same ICD-10 present in record.
 
 ```{r}
