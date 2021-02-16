@@ -37,7 +37,7 @@ d.frame <- newdata
 
 ```
 
-## Correlations between variables
+### Correlations between variables
 
 
 ```{r}
@@ -73,7 +73,7 @@ d.frame <- d.frame %>%
 
 ```
 
-## Gradient Boosting
+### Gradient Boosting
 
 ```{r}
 # David's code ####
@@ -150,7 +150,7 @@ xg.model <- xgboost(
 )
 ```
 
-## AUC
+### AUC
 
 ```{r}
 # evaluate
@@ -173,7 +173,7 @@ AUC Train: `r auc_ROCR_train`
 AUC Test: `r auc_ROCR_test`
 Train/Test: `r auc_ROCR_train/auc_ROCR_test`
 
-## Accuracy
+### Accuracy
 
 ```{r}
 # Accuracy
@@ -191,7 +191,7 @@ ACC Train: `r acc_ROCR_train`
 ACC Test: `r acc_ROCR_test`
 Train/Test: `r acc_ROCR_train/acc_ROCR_test`
 
-## Factor Importance
+### Factor Importance
 
 ```{r}
 # take a peak at deciding factors
