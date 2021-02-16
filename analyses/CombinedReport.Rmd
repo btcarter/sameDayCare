@@ -580,7 +580,7 @@ df.x.icdCodes <- df.x %>%
   select(-ICDs) %>% 
   unique()
 
-df.x.icdChapters <- df.x %>% 
+df.x.icdBlock <- df.x %>% 
   select(
     PersonID,
     ICD_block_all
@@ -616,7 +616,7 @@ df.x <- df.x %>%
     -ICD_all
   ) %>% 
   left_join(
-    df.x.icdChapters,
+    df.x.icdBlock,
     by = "PersonID"
   ) %>% 
   left_join(
