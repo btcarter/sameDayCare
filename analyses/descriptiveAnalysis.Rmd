@@ -518,5 +518,15 @@ residuals %>%
     axis.text.x = element_text(angle = 90, hjust = 1)
   )
 
+cappy <- paste("ICD-10 chapters with a significant association with ", 
+               params$respVar,
+               ".",
+               sep = "")
+
+knitr::kable(residuals[residuals$Significant == TRUE,], 
+             caption = cappy,
+             row.names = FALSE) %>% 
+  kableExtra::kable_styling(bootstrap_options = c("striped","condensed")) %>% kableExtra::scroll_box(width = "100%")
+
 ```
 
