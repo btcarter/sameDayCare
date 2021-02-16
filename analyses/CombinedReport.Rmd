@@ -615,6 +615,75 @@ df.x <- df.x %>%
     )
   )
 
+df.x.icdCodes <- df.x %>% 
+  select(
+    PersonID,
+    ICD_all
+  ) %>% 
+  group_by(
+    PersonID
+  ) %>% 
+  mutate(
+    ICDs = paste(ICD_all, collapse = "; ")
+  ) %>% 
+  ungroup() %>% 
+  select(
+    -ICD_all
+  ) %>% 
+  mutate(
+    ICDs = strsplit(ICDs, "; ")
+  ) %>% 
+  unnest(ICDs) %>% 
+  unique() %>% 
+  group_by(PersonID) %>% 
+  mutate(ICD_all = paste(ICDs, collapse = "; ")) %>% 
+  select(-ICDs) %>% 
+  unique()
+
+df.x.icdChapters <- df.x %>% 
+  select(
+    PersonID,
+    ICD_block_all
+  ) %>% 
+  group_by(
+    PersonID
+  ) %>% 
+  mutate(
+    ICDs = paste(ICD_block_all, collapse = "; ")
+  ) %>% 
+  ungroup() %>% 
+  select(
+    -ICD_block_all
+  ) %>% 
+  mutate(
+    ICDs = strsplit(ICDs, "; ")
+  ) %>% 
+  unnest(ICDs) %>% 
+  unique() %>% 
+  group_by(PersonID) %>% 
+  mutate(ICD_block_all = paste(ICDs, collapse = "; ")) %>% 
+  select(-ICDs) %>% 
+  unique()
+
+df.x <- df.x %>% 
+  group_by(
+    PersonID
+  ) %>% 
+  slice_head() %>% 
+  ungroup() %>% 
+  select(
+    -ICD_block_all,
+    -ICD_all
+  ) %>% 
+  left_join(
+    df.x.icdChapters,
+    by = "PersonID"
+  ) %>% 
+  left_join(
+    df.x.icdCodes,
+    by = "PersonID"
+  )
+
 ```
 
 "Frequent fliers" were identified as follows: the number of visits to a Same Day Care facility during 2017-2019 were counted. Individuals in the 95$^{th}$ percentile of this distribution were then indentified. Visits to Express Care facilities were not included in the total number of visits.
