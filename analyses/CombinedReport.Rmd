@@ -525,7 +525,7 @@ df.x <- df %>%
   mutate(
     frequentFlier = if_else(
       `TotalSdcVisits` >= quantile(TotalSdcVisits,
-                                prob = 0.95,
+                                probs = 0.95,
                                 na.rm = TRUE),
       "Frequent flier",
       "Infrequent flier"
@@ -624,6 +624,9 @@ df.x <- df.x %>%
     by = "PersonID"
   )
 
+df.x.icdCodes <- NULL
+df.x.icdBlock <- NULL
+
 ```
 
 "Frequent fliers" were identified as follows: the number of visits to a Same Day Care facility during 2017-2019 were counted. Individuals in the 95$^{th}$ percentile of this distribution were then indentified. Visits to Express Care facilities were not included in the total number of visits.
@@ -673,21 +676,6 @@ res <- knitr::knit_child('xgboost.Rmd', quiet = TRUE)
 cat(res, sep = '\n')
 
 ```
-
-
-# Sequence and Association Mining
-
-## Status: In Progress
-
-## What is it?
-
-Sequence and Association mining are methods by which events are queried to determine if there is a correlation between them. Sequence mining considers the temporal order of events while association mining is agnoistic to temporal order.
-
-
-# Exploring Geography | Where are they from?
-
-In progress
-- What proportion of SDC encounters from each neighborhood results in a return? A return to SDC or to other facility? Are there hotspots?
 
 # Conclusion
 
