@@ -5,8 +5,6 @@ date: "Generated: `r Sys.time()`"
 output: 
   html_document:
     code_folding: hide
-    toc: true
-    toc_float: true
     fig_width: 6
     fig_height: 12
     d.frame_print: paged
