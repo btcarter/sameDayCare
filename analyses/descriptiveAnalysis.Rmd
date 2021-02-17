@@ -34,8 +34,6 @@ categorical.vars <- union(categorical.vars,
 
 ```
 
-## Descriptive and Univariate Analysis
-
 ### Table 1
 
 ```{r}
@@ -54,18 +52,17 @@ comp.obj <- compareGroups(
 
 cap <- paste("Descriptive table for ", respVar, ".", sep = "")
 
-createTable(comp.obj, show.p.overall = FALSE, show.all = TRUE) %>% export2md(caption = cap)
+createTable(comp.obj, show.all = TRUE, show.p.overall = TRUE) %>% export2md(caption = cap)
 
 ```
 
-## Variables Associated with `r respVar`
+## Univariate analyses for `r respVar`
 
 ### Categorical factors
 
 ```{r}
 
-cat_vars <- c("any_icd_appearance",
-              "Fed_Ethnicity",
+cat_vars <- c("Fed_Ethnicity",
               "Language",
               "Race",
               "Marital_Status",
