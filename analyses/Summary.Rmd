@@ -5,12 +5,6 @@ date: "11/9/2020"
 output: html_document
 ---
 
-# Next Steps
-Topic Modelling reason for visit. Could this alone be used to predict return?
-- Develop primary model, probably via XGBoost
-- Also consider [association rules](https://towardsdatascience.com/association-rule-mining-in-r-ddf2d044ae50) or [sequence mining](https://www.r-bloggers.com/2020/10/sequence-mining-my-browsing-history-with-arulessequences/?__twitter_impression=true "This is just a link to a walkthrough").
-
-
 ## Potentially enriching data to add.
 - Basic vital signs, Rx, preexisting conditions.
 - Previous LOS, days since last encounter.
@@ -36,7 +30,3 @@ Topic Modelling reason for visit. Could this alone be used to predict return?
 - Consider regulation of address information and differentiating between mailing and residential address. This important in terms of readiness to track disease outbreaks and public health interventions. E.g. PO Box addresses should be entered as a mailing address not a home address. 'Attn. John Doe' should be entered as the second or third line for street address. Not first.
 - What/where is *Same Day Care* Nurse Unit? Why are the number of buildings and Nurse Units different? Shouldn't they be the same? If not, why?
 - Is 14 days really the optimal window?
-
-# Future steps
-- Deployment in medical reports
-- Blinded trials
