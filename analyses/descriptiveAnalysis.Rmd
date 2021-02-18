@@ -388,18 +388,18 @@ resp.vec <- c("EncounterID", respVar) # get response var
 resp.vec <- d.frame %>% 
   select(all_of(resp.vec))
 
-icd.vec <- c("EncounterID", "ICD_all") # get lists of ICDs
+icd.vec <- c("EncounterID", "ICD_block_all") # get lists of ICDs
 icd.vec <- d.frame %>% # unzip ICD list
   select(all_of(icd.vec)) %>% 
-    separate_rows(ICD_all, sep = "; ")
+    separate_rows(ICD_block_all, sep = "; ")
 
 ICD <- icd.data::icd10cm2016 %>% # join ICD list with ICD chapter names
   mutate(
-    code = as.character(code)
+    three_digit = as.character(three_digit)
   ) %>% 
   right_join(
     icd.vec,
-    by = c("code" = "ICD_all")
+    by = c("three_digit" = "ICD_block_all")
   ) %>% # join with response variable
   left_join(
     resp.vec,
@@ -407,12 +407,12 @@ ICD <- icd.data::icd10cm2016 %>% # join ICD list with ICD chapter names
   ) %>% 
   select(
     EncounterID,
-    code,
+    three_digit,
     chapter,
     params$respVar
   )
 
-res <- chisq.test(ICD$code, ICD[[respVar]])
+res <- chisq.test(ICD$three_digit, ICD[[respVar]])
 res
 
 residuals <- data.frame(res$residuals) %>%
@@ -434,8 +434,15 @@ Zscores <- data.frame(100*res$residuals^2/res$statistic) %>%
     
 icdDf <- icd.data::icd10cm2016 %>% 
   mutate(
-    code = as.character(code)
-  )
+    three_digit = as.character(three_digit)
+  ) %>% 
+  select(
+    -code,
+    -billable,
+    -short_desc,
+    -long_desc
+  ) %>% 
+  unique()
 
 res.tab <- residuals %>% 
   left_join(Zscores) %>% 
@@ -443,14 +450,14 @@ res.tab <- residuals %>%
     Significant == TRUE
   ) %>% 
   mutate(
-    ICD.code = as.character(ICD.code)
+    ICD.three_digit = as.character(ICD.three_digit)
   ) %>% 
   left_join(
     icdDf,
-    by = c("ICD.code" = "code")
+    by = c("ICD.three_digit" = "three_digit")
   ) %>% 
   select(
-    ICD.code,
+    ICD.three_digit,
     major,
     Residual,
     Z,
@@ -460,7 +467,7 @@ res.tab <- residuals %>%
     major = as.character(major)
   )
 
-res.tab$major[res.tab$ICD.code == "K8510"] <- "Biliary acute pancreatitis without necrosis or infection"
+# res.tab$major[res.tab$ICD.code == "K8510"] <- "Biliary acute pancreatitis without necrosis or infection"
 
 knitr::kable(res.tab) %>% kableExtra::kable_styling(bootstrap_options = c("striped","condensed")) %>% kableExtra::scroll_box(width = "100%")
 
