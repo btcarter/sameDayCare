@@ -454,9 +454,11 @@ df.x <- df %>%
 ```{r echo=FALSE, results='asis'}
 # make data frames for response variable and data
 y.var <- "return"
+id.var <- "EncounterID"
 
 # send data to rmd
 params=list(respVar = y.var,
+            id.var = id.var,
             d.frame = df.x)
 
 res <- knitr::knit_child('descriptiveAnalysis.Rmd', quiet = TRUE)
@@ -635,9 +637,11 @@ df.x.icdBlock <- NULL
 ```{r echo=FALSE, results='asis'}
 # make data frames for response variable and data
 y.var <- "frequentFlier"
+id.var <- "PersonID"
 
 # send data to rmd
 params=list(respVar = y.var,
+            id.var = id.var,
             d.frame = df.x)
 
 res <- knitr::knit_child('descriptiveAnalysis.Rmd', quiet = TRUE)
