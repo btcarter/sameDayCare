@@ -210,7 +210,9 @@ mat.plot %>%
   coord_flip() +
   theme_classic()
 
-xgb.plot.tree(model = xg.model, trees = 0)
+# xgb.plot.tree(model = xg.model, trees = 0)
+xgb.ggplot.deepness(model = xg.model)
+xgb.plot.multi.trees(model = xg.model)
 ```
 
 
