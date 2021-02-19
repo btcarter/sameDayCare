@@ -10,6 +10,7 @@ output:
 params:
   respVar: "return_in_14"
   d.frame: "did you forget me?"
+  id.var: "who am i"
 ---
 
 ```{r}
@@ -171,7 +172,7 @@ col.continuous <- col.df %>%
   ) %>% 
   filter(
     !(name %in% c("PersonID",
-                  "EncounterID",
+                  params$id.var,
                   "DiagnosisPrioritySEQ",
                   "id",
                   "days_to_return"))
@@ -209,11 +210,11 @@ print(continuous.list)
 ### All ICD-10 Codes
 
 ```{r}
-resp.vec <- c("EncounterID", respVar) # get response var
+resp.vec <- c(params$id.var, respVar) # get response var
 resp.vec <- d.frame %>% 
   select(all_of(resp.vec))
 
-icd.vec <- c("EncounterID", "ICD_block_all") # get lists of ICDs
+icd.vec <- c(params$id.var, "ICD_block_all") # get lists of ICDs
 icd.vec <- d.frame %>% # unzip ICD list
   select(all_of(icd.vec)) %>% 
     separate_rows(ICD_block_all, sep = "; ")
@@ -228,10 +229,10 @@ ICD <- icd.data::icd10cm2016 %>% # join ICD list with ICD chapter names
   ) %>% # join with response variable
   left_join(
     resp.vec,
-    by = c("EncounterID")
+    by = c(params$id.var)
   ) %>% 
   select(
-    EncounterID,
+    params$id.var,
     three_digit,
     chapter,
     params$respVar
@@ -284,6 +285,7 @@ res.tab <- residuals %>%
   select(
     ICD.three_digit,
     major,
+    ICD..respVar..,
     Residual,
     Z,
     Significant
@@ -300,6 +302,12 @@ knitr::kable(res.tab) %>% kableExtra::kable_styling(bootstrap_options = c("strip
 
 ### All ICD-10 Chapters
 ```{r}
+ICD <- ICD %>% 
+  select(
+    -three_digit
+  ) %>% 
+  unique()
+
 res <- chisq.test(ICD$chapter, ICD[[respVar]])
 res
 
